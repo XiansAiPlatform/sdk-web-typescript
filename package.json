@@ -1,5 +1,5 @@
 {
-  "name": "sdk-typescript",
+  "name": "@99xio/xians-sdk-typescript",
   "version": "1.0.0",
   "description": "A lightweight, framework-agnostic SDK for Agent WebSocket/SignalR communication",
   "main": "dist/index.js",

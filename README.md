@@ -1,4 +1,4 @@
-# Agent SDK TypeScript
+# Xians SDK TypeScript
 
 A **light-weight, framework-agnostic** wrapper that hides all WebSocket/SignalR complexity behind a handful of ergonomic methods.
 
@@ -7,30 +7,30 @@ A **light-weight, framework-agnostic** wrapper that hides all WebSocket/SignalR 
 Install the package using npm:
 
 ```bash
-npm install sdk-typescript
+npm install @99xio/xians-sdk-typescript
 ```
 
 Or using yarn:
 
 ```bash
-yarn add sdk-typescript
+yarn add @99xio/xians-sdk-typescript
 ```
 
 ## Import
 
 ```ts
-import AgentSDK from 'sdk-typescript';
+import AgentSDK from '@99xio/xians-sdk-typescript';
 //   or
-import { AgentSDK } from 'sdk-typescript';
+import { AgentSDK } from '@99xio/xians-sdk-typescript';
 
 // Import types
-import { type ChatMessageData, type HandoffMessage } from 'sdk-typescript';
+import { type ChatMessageData, type HandoffMessage } from '@99xio/xians-sdk-typescript';
 ```
 
 ## Quick Start
 
 ```ts
-import AgentSDK from 'sdk-typescript';
+import AgentSDK from '@99xio/xians-sdk-typescript';
 
 // 1️⃣  Configure once (typically on app start-up)
 const sdk = new AgentSDK({
@@ -144,7 +144,7 @@ The SDK supports dynamic default data that gets automatically included with ever
 Set up the `getDefaultData` function when creating the SDK instance:
 
 ```typescript
-import AgentSDK from 'sdk-typescript';
+import AgentSDK from '@99xio/xians-sdk-typescript';
 
 const sdk = new AgentSDK({
   agentWebsocketUrl: 'wss://your-hub.com/hub',
@@ -190,7 +190,7 @@ The SDK provides **specialized subscription methods** for different message type
 Subscribe specifically to chat messages (regular conversation messages).
 
 ```typescript
-import { type ChatMessageData } from 'sdk-typescript';
+import { type ChatMessageData } from '@99xio/xians-sdk-typescript';
 
 const unsubscribe = sdk.subscribeToChatMessages((chat: ChatMessageData) => {
   console.log('Chat received:', chat.text);
@@ -235,7 +235,7 @@ const unsubscribe = sdk.subscribeToData(
 Subscribe specifically to handoff messages (agent-to-agent transitions).
 
 ```typescript
-import { type HandoffMessage } from 'sdk-typescript';
+import { type HandoffMessage } from '@99xio/xians-sdk-typescript';
 
 const unsubscribe = sdk.subscribeToHandoffs((handoff: HandoffMessage) => {
   console.log('Handoff to:', handoff.workflowId);
@@ -273,7 +273,7 @@ import {
   type AgentSDKOptions,
   type ChatMessageData,
   type HandoffMessage 
-} from 'sdk-typescript';
+} from '@99xio/xians-sdk-typescript';
 ```
 
 ---
@@ -284,7 +284,7 @@ The SDK works seamlessly with React. Here are some example hooks:
 
 ```typescript
 import { useEffect, useState } from 'react';
-import { type ChatMessageData } from 'sdk-typescript';
+import { type ChatMessageData } from '@99xio/xians-sdk-typescript';
 
 function useChatMessages(sdk: AgentSDK) {
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
@@ -326,7 +326,7 @@ This package is extracted from a larger application. If you need features or fin
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd sdk-typescript
+cd sdk-web-typescript
 
 # Install dependencies
 npm install
@@ -343,8 +343,8 @@ npm run build
 # Make sure you're logged in to npm
 npm login
 
-# Publish the package
-npm publish
+# Publish the package (scoped packages require --access public)
+npm publish --access public
 ```
 
 ## Changelog

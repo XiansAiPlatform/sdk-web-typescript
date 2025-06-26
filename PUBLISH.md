@@ -1,17 +1,34 @@
-# Publishing Guide for sdk-typescript
+# Publishing Guide for @99xio/xians-sdk-typescript
 
-This guide walks you through publishing the `sdk-typescript` package to npm.
+This guide walks you through publishing the `@99xio/xians-sdk-typescript` package to npm.
 
 ## Prerequisites
 
 1. **npm account**: Create one at [npmjs.com](https://npmjs.com)
 2. **npm CLI**: Ensure you have npm installed
-3. **Repository access**: You need permissions to publish to the package name
+3. **Organization access**: You need to be a member of the `@99xio` organization on npm with publish permissions
+4. **Repository access**: You need permissions to publish to the package name
+
+### Organization Setup
+
+To publish under the `@99xio` scope, ensure you have the necessary permissions:
+
+```bash
+# Check if you're a member of the organization
+npm org ls 99xio
+
+# Or check your organizations
+npm access list-organizations
+```
+
+If you don't have access, contact an organization admin to add you.
 
 ## Pre-Publishing Checklist
 
 ### 1. Version Management
+
 Update the version in `package.json` following [Semantic Versioning](https://semver.org/):
+
 - **PATCH** (1.0.1): Bug fixes
 - **MINOR** (1.1.0): New features, backward compatible
 - **MAJOR** (2.0.0): Breaking changes
@@ -24,12 +41,15 @@ npm version major   # 1.0.0 -> 2.0.0
 ```
 
 ### 2. Build the Package
+
 ```bash
 npm run build
 ```
 
 ### 3. Test the Build
+
 Verify the built files exist:
+
 ```bash
 ls -la dist/
 # Should contain:
@@ -39,75 +59,80 @@ ls -la dist/
 # - Source maps (.map files)
 ```
 
-### 4. Test Installation Locally
-Test the package in the frontend project:
-```bash
-cd ../frontend
-npm install ../sdk-typescript
-npm run build  # Should build without errors
-```
-
 ## Publishing Steps
 
 ### 1. Login to npm
+
 ```bash
 npm login
 ```
+
 Enter your npm credentials when prompted.
 
 ### 2. Verify Login
+
 ```bash
 npm whoami
 ```
 
 ### 3. Check Package Contents
+
 Preview what will be published:
+
 ```bash
 npm publish --dry-run
 ```
 
 ### 4. Publish the Package
+
+For scoped packages (like this one), you need to specify public access:
+
 ```bash
-npm publish
+npm publish --access public
 ```
 
-For scoped packages or beta versions:
-```bash
-# Scoped package
-npm publish --access public
+For beta versions:
 
+```bash
 # Beta version
-npm publish --tag beta
+npm publish --tag beta --access public
 ```
 
 ## Post-Publishing
 
 ### 1. Verify Publication
+
 Check the package on npm:
+
 ```bash
-npm view sdk-typescript
+npm view @99xio/xians-sdk-typescript
 ```
 
 ### 2. Test Installation
+
 In a separate directory:
+
 ```bash
 mkdir test-install
 cd test-install
 npm init -y
-npm install sdk-typescript
+npm install @99xio/xians-sdk-typescript
 ```
 
 ### 3. Update Frontend Dependencies
+
 In your frontend project:
+
 ```bash
 # Remove the local file dependency
-npm uninstall sdk-typescript
+npm uninstall @99xio/xians-sdk-typescript
 
 # Install from npm
-npm install sdk-typescript
+npm install @99xio/xians-sdk-typescript
 ```
 
 ### 4. Update Documentation
+
 - Update CHANGELOG.md with the new version
 - Create a GitHub release if using GitHub
 - Update any documentation that references version numbers
@@ -125,15 +150,15 @@ npm install sdk-typescript
 ```bash
 # Bug fix release
 npm version patch
-npm publish
+npm publish --access public
 
 # New feature release
 npm version minor
-npm publish
+npm publish --access public
 
 # Breaking change release
 npm version major
-npm publish
+npm publish --access public
 ```
 
 ## Troubleshooting
@@ -141,12 +166,14 @@ npm publish
 ### Common Issues
 
 **Package name already exists**
+
 ```bash
 # Error: Package name already taken
 # Solution: Change the name in package.json
 ```
 
 **Authentication issues**
+
 ```bash
 # Re-login to npm
 npm logout
@@ -154,6 +181,7 @@ npm login
 ```
 
 **Build failures**
+
 ```bash
 # Clean and rebuild
 rm -rf dist/ node_modules/
@@ -162,6 +190,7 @@ npm run build
 ```
 
 **Permission denied**
+
 ```bash
 # Check if you have publish rights
 npm access list packages
@@ -170,7 +199,9 @@ npm access list packages
 ## Automation (Optional)
 
 ### GitHub Actions
+
 Create `.github/workflows/publish.yml`:
+
 ```yaml
 name: Publish to npm
 
@@ -189,20 +220,21 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - run: npm install
       - run: npm run build
-      - run: npm publish
+      - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
 ### Package Scripts
+
 Add helpful scripts to `package.json`:
 ```json
 {
   "scripts": {
     "prepublish": "npm run build",
-    "release:patch": "npm version patch && npm publish",
-    "release:minor": "npm version minor && npm publish",
-    "release:major": "npm version major && npm publish"
+    "release:patch": "npm version patch && npm publish --access public",
+    "release:minor": "npm version minor && npm publish --access public",
+    "release:major": "npm version major && npm publish --access public"
   }
 }
 ```
@@ -210,13 +242,16 @@ Add helpful scripts to `package.json`:
 ## Maintenance
 
 ### Regular Updates
+
 - Keep dependencies up to date
 - Monitor for security vulnerabilities
 - Respond to issues and pull requests
 - Maintain backward compatibility when possible
 
 ### Deprecation
+
 If you need to deprecate a version:
+
 ```bash
-npm deprecate sdk-typescript@1.0.0 "This version has critical bugs, please update"
-``` 
+npm deprecate @99xio/xians-sdk-typescript@1.0.0 "This version has critical bugs, please update"
+```
