@@ -14,7 +14,9 @@
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "prepublishOnly": "npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
   },
   "keywords": [
     "websocket",
@@ -34,11 +36,14 @@
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-typescript": "^11.1.5",
+    "@types/node": "^24.0.13",
+    "@vitest/ui": "^3.2.4",
+    "dotenv": "^17.2.0",
     "rollup": "^4.9.6",
     "tslib": "^2.6.2",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "vitest": "^3.2.4"
   },
-  "peerDependencies": {},
   "engines": {
     "node": ">=16.0.0"
   }
