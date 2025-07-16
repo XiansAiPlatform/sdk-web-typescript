@@ -24,9 +24,20 @@ export interface RpcProxyOptions {
   tenantId: string;
   
   /**
-   * API Key for authentication
+   * API Key for authentication (required if getJwtToken is not provided)
    */
-  apiKey: string;
+  apiKey?: string;
+  
+  /**
+   * JWT Token for authentication (optional, used as fallback if getJwtToken fails)
+   */
+  jwtToken?: string;
+  
+  /**
+   * Function to get JWT token - called for every request when using JWT authentication
+   * If provided, this takes precedence over the static jwtToken
+   */
+  getJwtToken?: () => Promise<string> | string;
   
   /**
    * Server URL for RPC calls
@@ -65,8 +76,11 @@ export class RpcSDK {
     if (!options.tenantId) {
       throw new Error('tenantId is required');
     }
-    if (!options.apiKey) {
-      throw new Error('apiKey is required');
+    if (!options.apiKey && !options.getJwtToken && !options.jwtToken) {
+      throw new Error('Either apiKey, jwtToken, or getJwtToken callback is required');
+    }
+    if (options.apiKey && (options.jwtToken || options.getJwtToken)) {
+      throw new Error('Cannot provide apiKey with jwtToken or getJwtToken. Please use only one authentication method.');
     }
     if (!options.serverUrl) {
       throw new Error('serverUrl is required');
@@ -85,13 +99,36 @@ export class RpcSDK {
     const url = new URL(`${this.options.serverUrl}/api/user/rpc`);
     url.searchParams.set('workflow', workflow);
     url.searchParams.set('procedureName', procedureName);
-    url.searchParams.set('apikey', this.options.apiKey);
     url.searchParams.set('tenantId', this.options.tenantId);
+    
+    let authToken: string;
+    
+    if (this.options.apiKey) {
+      authToken = this.options.apiKey;
+      url.searchParams.set('apikey', authToken);
+    } else if (this.options.getJwtToken) {
+      // Always call getJwtToken() to get a fresh token
+      try {
+        authToken = await this.options.getJwtToken();
+        url.searchParams.set('jwtToken', authToken);
+      } catch (error) {
+        if (this.options.logger) {
+          this.options.logger('Failed to get JWT token', [error]);
+        }
+        throw new Error(`Failed to get JWT token: ${error}`);
+      }
+    } else if (this.options.jwtToken) {
+      authToken = this.options.jwtToken;
+      url.searchParams.set('jwtToken', authToken);
+    } else {
+      throw new Error('No authentication method available');
+    }
 
     const response = await fetch(url.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
       },
       body: JSON.stringify(args),
     });
@@ -244,6 +281,28 @@ export class RpcSDK {
   }
   
   /**
+   * Updates the API key (switches to API key authentication)
+   */
+  updateApiKey(apiKey: string): void {
+    if (!apiKey) {
+      throw new Error('apiKey cannot be empty');
+    }
+    this.options.apiKey = apiKey;
+    this.options.jwtToken = undefined;
+  }
+
+  /**
+   * Updates the JWT token (switches to JWT token authentication)
+   */
+  updateJwtToken(jwtToken: string): void {
+    if (!jwtToken) {
+      throw new Error('jwtToken cannot be empty');
+    }
+    this.options.jwtToken = jwtToken;
+    this.options.apiKey = undefined;
+  }
+
+  /**
    * Get the tenant ID
    */
   getTenantId(): string {
@@ -251,10 +310,41 @@ export class RpcSDK {
   }
   
   /**
-   * Get the API key
+   * Get the API key (returns undefined if using JWT token)
    */
-  getApiKey(): string {
+  getApiKey(): string | undefined {
     return this.options.apiKey;
+  }
+  
+  /**
+   * Get the JWT token (returns undefined if using API key)
+   */
+  getJwtToken(): string | undefined {
+    return this.options.jwtToken;
+  }
+  
+  /**
+   * Get the authentication type being used
+   */
+  getAuthType(): 'apiKey' | 'jwtToken' | 'jwtCallback' {
+    if (this.options.apiKey) return 'apiKey';
+    if (this.options.getJwtToken) return 'jwtCallback';
+    return 'jwtToken';
+  }
+  
+  /**
+   * Get the authentication token (for static tokens only)
+   * Returns undefined if using callback-based JWT authentication
+   */
+  getAuthToken(): string | undefined {
+    return this.options.apiKey || this.options.jwtToken;
+  }
+  
+  /**
+   * Check if using callback-based JWT authentication
+   */
+  isUsingJwtCallback(): boolean {
+    return !!this.options.getJwtToken;
   }
   
   /**
@@ -276,8 +366,8 @@ export class RpcSDK {
  *   deleteUser(id: string): Promise<void>;
  * }
  * 
- * // Create RPC SDK instance with authentication and server URL
- * const rpcSDK = new RpcSDK({
+ * // Option 1: Create RPC SDK instance with API key authentication
+ * const rpcSDKWithApiKey = new RpcSDK({
  *   tenantId: 'my-tenant-123',
  *   apiKey: 'sk-1234567890',
  *   serverUrl: 'http://localhost:5000',
@@ -288,20 +378,51 @@ export class RpcSDK {
  *   }
  * });
  * 
- * // Create a proxy for your interface with workflow
- * const userServiceProxy = rpcSDK.createProxy<UserService>('user-workflow', 'UserService');
+ * // Option 2: Create RPC SDK instance with static JWT token authentication
+ * const rpcSDKWithJWT = new RpcSDK({
+ *   tenantId: 'my-tenant-123',
+ *   jwtToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+ *   serverUrl: 'http://localhost:5000',
+ *   namespace: 'MyApp',
+ *   logReturnValues: true,
+ *   logger: (method, args) => {
+ *     console.log(`🔵 RPC Call: ${method}`, args);
+ *   }
+ * });
+ * 
+ * // Option 3: Create RPC SDK instance with callback-based JWT authentication (recommended)
+ * const rpcSDKWithCallback = new RpcSDK({
+ *   tenantId: 'my-tenant-123',
+ *   serverUrl: 'http://localhost:5000',
+ *   getJwtToken: async () => {
+ *     // This is called for every request, so always fresh token
+ *     const response = await fetch('/api/auth/token');
+ *     const { token } = await response.json();
+ *     return token;
+ *   },
+ *   namespace: 'MyApp',
+ *   logReturnValues: true,
+ *   logger: (method, args) => {
+ *     console.log(`🔵 RPC Call: ${method}`, args);
+ *   }
+ * });
+ * 
+ * // Create a proxy for your interface with workflow (works with all auth methods)
+ * const userServiceProxy = rpcSDKWithCallback.createProxy<UserService>('user-workflow', 'UserService');
  * 
  * // When you call methods, they will be logged and sent to the server
  * await userServiceProxy.getUser('123'); 
- * // Logs: 🔵 RPC Call: MyApp.user-workflow.UserService.getUser ['123']
- * // Makes POST to: http://localhost:5000/api/user/rpc?workflow=user-workflow&procedureName=getUser&apikey=sk-1234567890&tenantId=my-tenant-123
- * // Body: ["123"]
+ * // Fresh token is fetched automatically for each call
  * 
- * await userServiceProxy.updateUser('123', { name: 'John' });
- * // Logs: 🔵 RPC Call: MyApp.user-workflow.UserService.updateUser ['123', { name: 'John' }]
- * // Makes POST to: http://localhost:5000/api/user/rpc?workflow=user-workflow&procedureName=updateUser&apikey=sk-1234567890&tenantId=my-tenant-123
- * // Body: ["123", { "name": "John" }]
+ * // Check authentication type
+ * console.log(`Using ${rpcSDKWithApiKey.getAuthType()} authentication`); // "apiKey"
+ * console.log(`Using ${rpcSDKWithJWT.getAuthType()} authentication`); // "jwtToken"
+ * console.log(`Using ${rpcSDKWithCallback.getAuthType()} authentication`); // "jwtCallback"
+ * console.log(`Is using callback? ${rpcSDKWithCallback.isUsingJwtCallback()}`); // true
+ * 
+ * // Dynamic token updates (for static tokens only)
+ * rpcSDKWithJWT.updateJwtToken('new-jwt-token-here');
  * ```
  */
 
-export default RpcSDK; 
+export default RpcSDK;

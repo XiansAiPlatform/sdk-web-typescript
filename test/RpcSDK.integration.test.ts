@@ -14,18 +14,7 @@ class DocumentRequest {
 
 // Test interface for document service
 interface AgentService {
-  GetDocument(request: DocumentRequest): Promise<{
-    principal: {
-      userId: string;
-      fullName: string;
-      nationalId: string;
-      address: string;
-    };
-    scope: string;
-    representatives: any[];
-    conditions: any[];
-    witnesses: any[];
-  }>;
+  GetAuditedDocument(request: DocumentRequest): Promise<object>;
 }
 
 describe('RpcSDK Integration Tests', () => {
@@ -53,14 +42,16 @@ describe('RpcSDK Integration Tests', () => {
     );
 
     try {
-      const result = await documentService.GetDocument({
+      const result = await documentService.GetAuditedDocument({
         documentId: '4e85a9b8-9912-4264-adb9-d968e787f9cb',
         participantId: 'participant123'
       });
       console.log(result);
       
       // Verify the response structure
-      expect(result.principal.userId).not.toBeNull();
+      expect((result as any).document.principal.userId).not.toBeNull();
+      expect((result as any).findings).toBeInstanceOf(Array);
+      expect((result as any).HasErrors).toBeDefined();
       
     } catch (error) {
       // If server is not available, skip the test with a message
@@ -87,11 +78,11 @@ describe('RpcSDK Integration Tests', () => {
 
     try {
       // Make multiple calls
-      const result1 = await documentService.GetDocument({
+      const result1 = await documentService.GetAuditedDocument({
         documentId: '4e85a9b8-9912-4264-adb9-d968e787f9cb',
         participantId: 'participant123'
       });
-      const result2 = await documentService.GetDocument({
+      const result2 = await documentService.GetAuditedDocument({
         documentId: '4e85a9b8-9912-4264-adb9-d968e787f9cc',
         participantId: 'participant456'
       });
@@ -101,7 +92,11 @@ describe('RpcSDK Integration Tests', () => {
       expect(result2).toBeDefined();
       
       // Verify both calls have the expected structure
-      expect(result1).toHaveProperty('principal');
+      expect(result1).toHaveProperty('document');
+      expect(result2).toHaveProperty('document');
+      expect(result1).toHaveProperty('findings');
+      expect(result2).toHaveProperty('findings');
+      expect(result1).toHaveProperty('HasErrors');
 
       
       // Verify logger was called for both requests
@@ -131,7 +126,7 @@ describe('RpcSDK Integration Tests', () => {
 
     try {
       // Try to get a document that should not exist
-      await expect(documentService.GetDocument({
+      await expect(documentService.GetAuditedDocument({
         documentId: 'nonexistent-doc',
         participantId: 'participant123'
       })).rejects.toThrow();
@@ -182,7 +177,7 @@ describe('RpcSDK Integration Tests', () => {
     );
 
     // This should throw a network error
-    await expect(documentService.GetDocument({
+    await expect(documentService.GetAuditedDocument({
       documentId: 'doc123',
       participantId: 'participant123'
     })).rejects.toThrow();

@@ -1,9 +1,10 @@
-# RPC SDK Tests
+# SDK Tests
 
-This directory contains tests for the RPC SDK functionality using Vitest.
+This directory contains tests for both the RPC SDK and Socket SDK functionality using Vitest.
 
 ## Test Files
 
+### RpcSDK Tests
 - `RpcSDK.test.ts` - Unit tests for RPC SDK functionality
   - Constructor validation tests
   - HTTP request and response handling tests
@@ -14,22 +15,34 @@ This directory contains tests for the RPC SDK functionality using Vitest.
   - Multiple request handling tests
   - Error handling in integration scenarios
 
+### SocketSDK Tests
+- `SocketSDK.integration.test.ts` - Integration tests for Socket SDK functionality
+  - WebSocket connection tests
+  - Bot message sending and receiving tests
+  - Bot history retrieval tests
+  - Multiple bot subscription tests
+  - Bot metrics retrieval tests
+  - Authentication and error handling tests
+
 ## Configuration
 
 ### Using .env File
 
-The integration tests support loading configuration from a `.env` file located in the `test/` directory. This is the recommended approach for managing test configuration.
+Both RPC and Socket integration tests support loading configuration from a `.env` file located in the `test/` directory. This is the recommended approach for managing test configuration.
 
 1. **Create or modify `test/.env`:**
    ```bash
-   # API key for integration tests
+   # API key for integration tests (used by both RPC and Socket SDKs)
    API_KEY=your-api-key-here
    
-   # Server URL for the RPC endpoint
+   # Server URL for both RPC and WebSocket endpoints
    SERVER_URL=http://localhost:5000
    
    # Tenant ID for the requests
    TENANT_ID=default
+   
+   # Optional: JWT token for testing JWT authentication (alternative to API_KEY)
+   JWT_TOKEN=your-jwt-token-here
    ```
 
 2. **The `.env` file is automatically loaded** by the integration tests, so no additional configuration is needed.
@@ -40,7 +53,7 @@ For integration tests, you can configure settings via environment variables:
 
 ```bash
 # Using .env file (recommended)
-# Edit test/.env and add:
+# Copy test/.env.example to test/.env and edit:
 API_KEY=your-api-key-here
 SERVER_URL=http://localhost:5000
 TENANT_ID=default
@@ -48,36 +61,59 @@ TENANT_ID=default
 # Or set environment variables directly
 export API_KEY="your-api-key-here"
 export SERVER_URL="http://localhost:5000"
-export TENANT_ID="default"
-npm test
-
-# Or run tests with inline environment variables
-API_KEY="your-api-key-here" SERVER_URL="http://localhost:5000" TENANT_ID="default" npx vitest test/RpcSDK.integration.test.ts
+export TENANT_ID="your-tenant-id"
 ```
 
-**Available environment variables:**
-- `API_KEY` - API key for authentication (required)
-- `SERVER_URL` - Server URL for RPC calls (required, e.g., `http://localhost:5000`)
-- `TENANT_ID` - Tenant ID for requests (required, e.g., `default`)
+## SocketSDK Integration Test Features
 
-All environment variables are required for integration tests. If any are missing, the tests will fail with an error message.
+The SocketSDK integration tests cover:
+
+1. **Connection Management**
+   - WebSocket connection establishment
+   - Connection state monitoring
+   - Automatic reconnection handling
+   - Authentication with API keys and JWT tokens
+
+2. **Bot Communication**
+   - Sending bot requests with various parameters
+   - Receiving bot responses asynchronously
+   - Error handling for bot communication
+
+3. **Subscription Management**
+   - Subscribing to individual bot workflows
+   - Batch subscribing to multiple workflows
+   - Unsubscribing from workflows
+
+4. **History and Metrics**
+   - Retrieving bot conversation history
+   - Getting bot service metrics
+   - Monitoring connection performance
+
+5. **Error Scenarios**
+   - Authentication failures
+   - Server unavailability
+   - Network disconnections
+   - Invalid parameters
 
 ## Running Tests
 
 ### Standard Commands
 
 ```bash
-# Run all tests in watch mode (default)
+# Run all tests
 npm test
 
-# Run tests once and exit
-npm run test:run
+# Run only RpcSDK tests
+npx vitest run --grep RpcSDK
 
-# Run tests with UI interface
-npm run test:ui
+# Run only SocketSDK tests
+npx vitest run --grep SocketSDK
 
-# Run tests with coverage
-npx vitest run --coverage
+# Run with coverage
+npm run test:coverage
+
+# Run in watch mode
+npx vitest
 ```
 
 ### Running Specific Tests

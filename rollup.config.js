@@ -44,6 +44,7 @@ export default [
       commonjs(),
       typescript({
         declaration: false, // Only generate declarations once
+        declarationMap: false, // No declaration maps when declarations are disabled
         rootDir: '.',
       }),
     ],

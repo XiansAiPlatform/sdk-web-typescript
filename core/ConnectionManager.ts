@@ -199,14 +199,14 @@ export class ConnectionManager {
   private async subscribeAndRequestHistory(connection: HubConnection, agent: Agent, index: number) {
     try {
       // Subscribe to agent group using workflowType (server will prepend tenant if needed)
-      const subscribeId = agent.workflowType;
-      if (!subscribeId) {
+      const workflow = agent.workflowType;
+      if (!workflow) {
         console.warn(`[ConnectionManager] Agent ${index} has no workflowType, skipping subscription`);
         return;
       }
       
-      console.log(`[ConnectionManager] Subscribing to agent group: subscribeId=${subscribeId}, participantId=${this.settings!.participantId}, tenantId=${this.settings!.tenantId}`);
-      await connection.invoke('SubscribeToAgent', subscribeId, this.settings!.participantId, this.settings!.tenantId);
+      console.log(`[ConnectionManager] Subscribing to agent group: workflow=${workflow}, participantId=${this.settings!.participantId}, tenantId=${this.settings!.tenantId}`);
+      await connection.invoke('SubscribeToAgent', workflow, this.settings!.participantId, this.settings!.tenantId);
       console.log(`[ConnectionManager] Subscribed to agent group for ${agent.workflowType}`);
 
       // Request thread history using workflowType
