@@ -1,77 +1,25 @@
 /**
- * Bot Socket SDK for real-time bot communication using SignalR
+ * Chat Socket SDK for real-time chat communication using SignalR
  */
 
 import * as signalR from '@microsoft/signalr';
+import { 
+  MessageType, 
+  Message, 
+  BaseMessageRequest, 
+  BaseSDKOptions, 
+  AuthType 
+} from './types';
 
 /**
- * Bot request structure for WebSocket communication
+ * Chat or data request structure for WebSocket communication
+ * Matches ChatOrDataRequest from C# backend
  */
-export interface BotRequest {
-  requestId?: string;
-  participantId: string;
+export interface MessageRequest extends BaseMessageRequest {
   workflowId?: string;
   workflowType?: string;
-  scope?: string;
-  hint?: string;
-  data?: any;
-  text?: string;
   threadId?: string;
   authorization?: string;
-}
-
-/**
- * Bot response structure from WebSocket
- */
-export interface BotResponse {
-  requestId?: string;
-  threadId: string;
-  participantId: string;
-  text?: string;
-  data?: any;
-  scope?: string;
-}
-
-/**
- * Bot history message structure
- */
-export interface BotHistoryMessage {
-  id: string;
-  createdAt: string;
-  direction: 'Incoming' | 'Outgoing';
-  messageType?: string;
-  text?: string;
-  data?: any;
-  hint?: string;
-  requestId?: string;
-}
-
-/**
- * Error response structure
- */
-export interface BotError {
-  requestId?: string;
-  statusCode: number;
-  message: string;
-}
-
-/**
- * Connection metrics structure
- */
-export interface ConnectionMetrics {
-  activeConnections: number;
-  cachedGroupNames: number;
-  averageConnectionDuration: string;
-}
-
-/**
- * Bot service metrics structure
- */
-export interface BotMetrics {
-  timestamp: string;
-  service: string;
-  hubMetrics: ConnectionMetrics;
-  status: string;
 }
 
 /**
@@ -88,58 +36,22 @@ export enum ConnectionState {
 /**
  * Event handlers interface
  */
-export interface BotEventHandlers {
-  onBotResponse?: (response: BotResponse) => void;
-  onBotError?: (error: BotError) => void;
-  onBotHistory?: (history: BotHistoryMessage[]) => void;
-  onBotHistoryError?: (error: BotError) => void;
+export interface EventHandlers {
+  onThreadHistory?: (history: Message[]) => void;
+  onInboundProcessed?: (threadId: string) => void;
+  onReceiveChat?: (message: Message) => void;
+  onReceiveData?: (message: Message) => void;
+  onError?: (error: string) => void;
   onConnectionError?: (error: { statusCode: number; message: string }) => void;
-  onSubscriptionError?: (error: { message: string }) => void;
-  onUnsubscriptionError?: (error: { message: string }) => void;
   onConnectionStateChanged?: (oldState: ConnectionState, newState: ConnectionState) => void;
   onReconnecting?: (error?: Error) => void;
   onReconnected?: (connectionId?: string) => void;
 }
 
 /**
- * Configuration options for the Bot Socket SDK
+ * Configuration options for the Chat Socket SDK
  */
-export interface BotSocketSDKOptions {
-  /**
-   * Tenant ID for authentication
-   */
-  tenantId: string;
-  
-  /**
-   * API Key for authentication (required if getJwtToken is not provided)
-   */
-  apiKey?: string;
-  
-  /**
-   * JWT Token for authentication (optional, used as fallback if getJwtToken fails)
-   */
-  jwtToken?: string;
-  
-  /**
-   * Function to get JWT token - called for every connection when using JWT authentication
-   * If provided, this takes precedence over the static jwtToken
-   */
-  getJwtToken?: () => Promise<string> | string;
-  
-  /**
-   * Server URL for WebSocket connection
-   */
-  serverUrl: string;
-  
-  /**
-   * Custom logger function. Defaults to console.log
-   */
-  logger?: (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: any) => void;
-  
-  /**
-   * Optional namespace/prefix for logging
-   */
-  namespace?: string;
+export interface SocketSDKOptions extends BaseSDKOptions {
   
   /**
    * Whether to automatically reconnect on connection loss
@@ -162,23 +74,23 @@ export interface BotSocketSDKOptions {
   connectionTimeout?: number;
   
   /**
-   * Event handlers for bot communication
+   * Event handlers for chat communication
    */
-  eventHandlers?: BotEventHandlers;
+  eventHandlers?: EventHandlers;
 }
 
 /**
- * Bot Socket SDK class for real-time bot communication
+ * Chat Socket SDK class for real-time chat communication
  */
-export class BotSocketSDK {
-  private options: BotSocketSDKOptions;
+export class SocketSDK {
+  private options: SocketSDKOptions;
   private connection: signalR.HubConnection | null = null;
   private connectionState: ConnectionState = ConnectionState.Disconnected;
   private reconnectAttempts: number = 0;
   private isDisposed: boolean = false;
-  private eventHandlers: BotEventHandlers = {};
+  private eventHandlers: EventHandlers = {};
 
-  constructor(options: BotSocketSDKOptions) {
+  constructor(options: SocketSDKOptions) {
     // Validate required fields
     if (!options.tenantId) {
       throw new Error('tenantId is required');
@@ -226,6 +138,21 @@ export class BotSocketSDK {
       .configureLogging(signalR.LogLevel.Information);
 
     this.connection = connectionBuilder.build();
+    
+    // Debug: Log all SignalR events received (for debugging purposes)
+    if (this.options.logger) {
+      const originalOn = this.connection.on.bind(this.connection);
+      this.connection.on = (methodName: string, callback: (...args: any[]) => void) => {
+        return originalOn(methodName, (...args: any[]) => {
+          this.options.logger!('debug', `🔍 SignalR event: ${methodName}`, { 
+            argsCount: args.length,
+            firstArg: args.length > 0 ? args[0] : null 
+          });
+          return callback(...args);
+        });
+      };
+    }
+    
     this.setupEventHandlers();
   }
 
@@ -233,7 +160,7 @@ export class BotSocketSDK {
    * Builds the complete connection URL with query parameters
    */
   private async buildConnectionUrl(): Promise<string> {
-    const url = new URL(`${this.options.serverUrl}/ws/user/bot`);
+    const url = new URL(`${this.options.serverUrl}/ws/chat`);
     
     // Always include tenantId
     url.searchParams.set('tenantId', this.options.tenantId);
@@ -322,33 +249,67 @@ export class BotSocketSDK {
       this.eventHandlers.onReconnected?.(connectionId);
     });
 
-    // Bot communication events
-    this.connection.on('BotResponse', (response: BotResponse) => {
+    // Chat communication events matching ChatHub SignalR methods
+    // SignalR method names are case-sensitive and usually lowercase
+    this.connection.on('ThreadHistory', (history: Message[] | null) => {
+      const safeHistory = history || [];
       if (this.options.logger) {
-        this.options.logger('debug', 'Received bot response', response);
+        this.options.logger('debug', 'Received thread history (Pascal)', { count: safeHistory.length });
       }
-      this.eventHandlers.onBotResponse?.(response);
+      this.eventHandlers.onThreadHistory?.(safeHistory);
     });
 
-    this.connection.on('BotError', (error: BotError) => {
+    this.connection.on('threadhistory', (history: Message[] | null) => {
+      const safeHistory = history || [];
       if (this.options.logger) {
-        this.options.logger('error', 'Received bot error', error);
+        this.options.logger('debug', 'Received thread history (lowercase)', { count: safeHistory.length });
       }
-      this.eventHandlers.onBotError?.(error);
+      this.eventHandlers.onThreadHistory?.(safeHistory);
     });
 
-    this.connection.on('BotHistory', (history: BotHistoryMessage[]) => {
+    this.connection.on('InboundProcessed', (threadId: string) => {
       if (this.options.logger) {
-        this.options.logger('debug', 'Received bot history', { count: history.length });
+        this.options.logger('debug', 'Inbound message processed (Pascal)', { threadId });
       }
-      this.eventHandlers.onBotHistory?.(history);
+      this.eventHandlers.onInboundProcessed?.(threadId);
     });
 
-    this.connection.on('BotHistoryError', (error: BotError) => {
+    this.connection.on('inboundprocessed', (threadId: string) => {
       if (this.options.logger) {
-        this.options.logger('error', 'Received bot history error', error);
+        this.options.logger('debug', 'Inbound message processed (lowercase)', { threadId });
       }
-      this.eventHandlers.onBotHistoryError?.(error);
+      this.eventHandlers.onInboundProcessed?.(threadId);
+    });
+
+
+    this.connection.on('ReceiveChat', (message: Message) => {
+      if (this.options.logger) {
+        this.options.logger('info', '🔔 [NEW-Pascal] Received agent chat message via ReceiveChat', { 
+          messageId: message.id, 
+          direction: message.direction,
+          text: message.text ? message.text.substring(0, 100) + '...' : 'No text'
+        });
+      }
+      this.eventHandlers.onReceiveChat?.(message);
+    });
+
+
+    this.connection.on('ReceiveData', (message: Message) => {
+      if (this.options.logger) {
+        this.options.logger('info', '🔔 [NEW-Pascal] Received agent data message via ReceiveData', { 
+          messageId: message.id, 
+          direction: message.direction,
+          hasData: !!message.data
+        });
+      }
+      this.eventHandlers.onReceiveData?.(message);
+    });
+
+    this.connection.on('Error', (error: string) => {
+      if (this.options.logger) {
+        this.options.logger('error', 'Received error', error);
+      }
+      this.eventHandlers.onError?.(error);
     });
 
     this.connection.on('ConnectionError', (error: { statusCode: number; message: string }) => {
@@ -356,20 +317,6 @@ export class BotSocketSDK {
         this.options.logger('error', 'Connection error', error);
       }
       this.eventHandlers.onConnectionError?.(error);
-    });
-
-    this.connection.on('SubscriptionError', (error: { message: string }) => {
-      if (this.options.logger) {
-        this.options.logger('error', 'Subscription error', error);
-      }
-      this.eventHandlers.onSubscriptionError?.(error);
-    });
-
-    this.connection.on('UnsubscriptionError', (error: { message: string }) => {
-      if (this.options.logger) {
-        this.options.logger('error', 'Unsubscription error', error);
-      }
-      this.eventHandlers.onUnsubscriptionError?.(error);
     });
   }
 
@@ -486,9 +433,9 @@ export class BotSocketSDK {
   }
 
   /**
-   * Sends a bot request
+   * Sends an inbound message to the chat system
    */
-  public async sendBotRequest(request: BotRequest): Promise<void> {
+  public async sendInboundMessage(request: MessageRequest, messageType: MessageType): Promise<void> {
     if (!this.connection || this.connectionState !== ConnectionState.Connected) {
       throw new Error('Connection is not established');
     }
@@ -500,26 +447,26 @@ export class BotSocketSDK {
       }
 
       if (this.options.logger) {
-        this.options.logger('debug', 'Sending bot request', request);
+        this.options.logger('debug', 'Sending inbound message', { request, messageType });
       }
 
-      await this.connection.invoke('RequestBot', request);
+      await this.connection.invoke('SendInboundMessage', request, messageType);
     } catch (error) {
       if (this.options.logger) {
-        this.options.logger('error', 'Failed to send bot request', error);
+        this.options.logger('error', 'Failed to send inbound message', error);
       }
       throw error;
     }
   }
 
   /**
-   * Gets bot history for a workflow and participant
+   * Gets thread history for a workflow and participant
    */
-  public async getBotHistory(
+  public async getThreadHistory(
     workflow: string, 
     participantId: string, 
-    page: number = 1, 
-    pageSize: number = 50, 
+    page: number = 0, 
+    pageSize: number = 50,
     scope?: string
   ): Promise<void> {
     if (!this.connection || this.connectionState !== ConnectionState.Connected) {
@@ -528,115 +475,75 @@ export class BotSocketSDK {
 
     try {
       if (this.options.logger) {
-        this.options.logger('debug', 'Requesting bot history', { workflow, participantId, page, pageSize, scope });
+        this.options.logger('debug', 'Requesting thread history', { workflow, participantId, page, pageSize, scope });
       }
 
-      await this.connection.invoke('GetBotHistory', workflow, participantId, page, pageSize, scope);
+      if (scope) {
+        await this.connection.invoke('GetScopedThreadHistory', workflow, participantId, page, pageSize, scope);
+      } else {
+        await this.connection.invoke('GetThreadHistory', workflow, participantId, page, pageSize);
+      }
     } catch (error) {
       if (this.options.logger) {
-        this.options.logger('error', 'Failed to get bot history', error);
+        this.options.logger('error', 'Failed to get thread history', error);
       }
       throw error;
     }
   }
 
   /**
-   * Subscribes to bot notifications for a workflow
+   * Subscribes to agent notifications for a workflow
    */
-  public async subscribeToBots(workflow: string, participantId: string): Promise<void> {
+  public async subscribeToAgent(workflow: string, participantId: string): Promise<void> {
+    if (!this.connection || this.connectionState !== ConnectionState.Connected) {
+      throw new Error('Connection is not established');
+    }
+
+    try {
+      // Log expected group name for debugging
+      const expectedWorkflowId = workflow.startsWith(this.options.tenantId + ':') ? workflow : `${this.options.tenantId}:${workflow}`;
+      const expectedGroupName = expectedWorkflowId + participantId + this.options.tenantId;
+      
+      if (this.options.logger) {
+        this.options.logger('info', '🔗 Subscribing to agent group', { 
+          workflow, 
+          participantId, 
+          tenantId: this.options.tenantId,
+          expectedWorkflowId,
+          expectedGroupName
+        });
+      }
+
+      await this.connection.invoke('SubscribeToAgent', workflow, participantId, this.options.tenantId);
+      
+      if (this.options.logger) {
+        this.options.logger('info', '✅ Successfully subscribed to agent group');
+      }
+    } catch (error) {
+      if (this.options.logger) {
+        this.options.logger('error', '❌ Failed to subscribe to agent', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Unsubscribes from agent notifications for a workflow
+   */
+  public async unsubscribeFromAgent(workflow: string, participantId: string): Promise<void> {
     if (!this.connection || this.connectionState !== ConnectionState.Connected) {
       throw new Error('Connection is not established');
     }
 
     try {
       if (this.options.logger) {
-        this.options.logger('debug', 'Subscribing to bots', { workflow, participantId, tenantId: this.options.tenantId });
+        this.options.logger('debug', 'Unsubscribing from agent', { workflow, participantId, tenantId: this.options.tenantId });
       }
 
-      await this.connection.invoke('SubscribeToBots', workflow, participantId, this.options.tenantId);
+      await this.connection.invoke('UnsubscribeFromAgent', workflow, participantId, this.options.tenantId);
     } catch (error) {
       if (this.options.logger) {
-        this.options.logger('error', 'Failed to subscribe to bots', error);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Unsubscribes from bot notifications for a workflow
-   */
-  public async unsubscribeFromBots(workflow: string, participantId: string): Promise<void> {
-    if (!this.connection || this.connectionState !== ConnectionState.Connected) {
-      throw new Error('Connection is not established');
-    }
-
-    try {
-      if (this.options.logger) {
-        this.options.logger('debug', 'Unsubscribing from bots', { workflow, participantId, tenantId: this.options.tenantId });
-      }
-
-      await this.connection.invoke('UnsubscribeFromBots', workflow, participantId, this.options.tenantId);
-    } catch (error) {
-      if (this.options.logger) {
-        this.options.logger('error', 'Failed to unsubscribe from bots', error);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Batch subscribes to multiple bot workflows
-   */
-  public async batchSubscribeToBots(workflows: string[], participantId: string): Promise<void> {
-    if (!this.connection || this.connectionState !== ConnectionState.Connected) {
-      throw new Error('Connection is not established');
-    }
-
-    try {
-      if (this.options.logger) {
-        this.options.logger('debug', 'Batch subscribing to bots', { workflows, participantId, tenantId: this.options.tenantId });
-      }
-
-      await this.connection.invoke('BatchSubscribeToBots', workflows, participantId, this.options.tenantId);
-    } catch (error) {
-      if (this.options.logger) {
-        this.options.logger('error', 'Failed to batch subscribe to bots', error);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Gets bot service metrics via HTTP call
-   */
-  public async getBotMetrics(): Promise<BotMetrics> {
-    try {
-      const authToken = await this.getAuthToken();
-      
-      // Build URL with query parameters for authentication
-      const url = new URL(`${this.options.serverUrl}/api/user/bot/metrics`);
-      url.searchParams.set('tenantId', this.options.tenantId);
-      
-      if (this.options.apiKey) {
-        url.searchParams.set('apikey', this.options.apiKey);
-      }
-      
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to get bot metrics: ${response.status} ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      if (this.options.logger) {
-        this.options.logger('error', 'Failed to get bot metrics', error);
+        this.options.logger('error', 'Failed to unsubscribe from agent', error);
       }
       throw error;
     }
@@ -645,7 +552,7 @@ export class BotSocketSDK {
   /**
    * Updates event handlers
    */
-  public updateEventHandlers(handlers: Partial<BotEventHandlers>): void {
+  public updateEventHandlers(handlers: Partial<EventHandlers>): void {
     this.eventHandlers = { ...this.eventHandlers, ...handlers };
   }
 
@@ -673,7 +580,7 @@ export class BotSocketSDK {
   /**
    * Gets the authentication type being used
    */
-  public getAuthType(): 'apiKey' | 'jwtToken' | 'jwtCallback' {
+  public getAuthType(): AuthType {
     if (this.options.apiKey) return 'apiKey';
     if (this.options.getJwtToken) return 'jwtCallback';
     return 'jwtToken';
@@ -748,19 +655,28 @@ export class BotSocketSDK {
  * Example usage:
  * 
  * ```typescript
- * // Option 1: Create Bot Socket SDK with API key authentication
- * const botSocketSDKWithApiKey = new BotSocketSDK({
+ * // Option 1: Create Chat Socket SDK with API key authentication
+ * const chatSocketSDKWithApiKey = new ChatSocketSDK({
  *   tenantId: 'my-tenant-123',
  *   apiKey: 'sk-1234567890',
  *   serverUrl: 'http://localhost:5000',
  *   namespace: 'MyApp',
  *   autoReconnect: true,
  *   eventHandlers: {
- *     onBotResponse: (response) => {
- *       console.log('Bot responded:', response.text);
+ *     onThreadHistory: (history) => {
+ *       console.log('Received history with', history.length, 'messages');
  *     },
- *     onBotError: (error) => {
- *       console.error('Bot error:', error.message);
+ *     onInboundProcessed: (threadId) => {
+ *       console.log('Message processed for thread:', threadId);
+ *     },
+ *     onReceiveChat: (message) => {
+ *       console.log('Agent responded:', message.text);
+ *     },
+ *     onReceiveData: (message) => {
+ *       console.log('Agent sent data:', message.data);
+ *     },
+ *     onError: (error) => {
+ *       console.error('Chat error:', error);
  *     },
  *     onConnectionStateChanged: (oldState, newState) => {
  *       console.log(`Connection state changed: ${oldState} -> ${newState}`);
@@ -771,8 +687,8 @@ export class BotSocketSDK {
  *   }
  * });
  * 
- * // Option 2: Create Bot Socket SDK with callback-based JWT authentication (recommended)
- * const botSocketSDKWithCallback = new BotSocketSDK({
+ * // Option 2: Create Chat Socket SDK with callback-based JWT authentication (recommended)
+ * const chatSocketSDKWithCallback = new ChatSocketSDK({
  *   tenantId: 'my-tenant-123',
  *   serverUrl: 'http://localhost:5000',
  *   getJwtToken: async () => {
@@ -783,51 +699,57 @@ export class BotSocketSDK {
  *   },
  *   autoReconnect: true,
  *   eventHandlers: {
- *     onBotResponse: (response) => {
- *       console.log('Bot responded:', response.text);
+ *     onThreadHistory: (history) => {
+ *       console.log('Received history with', history.length, 'messages');
+ *     },
+ *     onReceiveChat: (message) => {
+ *       console.log('Agent response:', message.text);
  *     }
  *   }
  * });
  * 
- * // Connect to the bot hub
- * await botSocketSDKWithCallback.connect();
+ * // Connect to the chat hub
+ * await chatSocketSDKWithCallback.connect();
  * 
- * // Subscribe to bot notifications
- * await botSocketSDKWithCallback.subscribeToBots('customer-support', 'user-123');
+ * // Subscribe to agent notifications
+ * await chatSocketSDKWithCallback.subscribeToAgent('customer-support', 'user-123');
  * 
- * // Send a bot request
- * await botSocketSDKWithCallback.sendBotRequest({
+ * // Send an inbound message
+ * await chatSocketSDKWithCallback.sendInboundMessage({
  *   requestId: 'req-123',
  *   participantId: 'user-123',
  *   workflowType: 'customer-support',
  *   text: 'Hello, I need help with my order',
- *   parameters: { priority: 'high' }
- * });
+ *   data: { priority: 'high' }
+ * }, MessageType.Chat);
  * 
- * // Get bot history
- * await botSocketSDKWithCallback.getBotHistory('customer-support', 'user-123', 1, 20);
+ * // Get thread history
+ * await chatSocketSDKWithCallback.getThreadHistory('customer-support', 'user-123', 0, 20);
  * 
- * // Get performance metrics
- * const metrics = await botSocketSDKWithCallback.getBotMetrics();
+ * // Get thread history with scope
+ * await chatSocketSDKWithCallback.getThreadHistory('customer-support', 'user-123', 0, 20, 'support');
+ * 
+ * // Get performance metrics (if available)
+ * const metrics = await chatSocketSDKWithCallback.getChatMetrics();
  * console.log('Active connections:', metrics.hubMetrics.activeConnections);
  * 
  * // Check connection state
- * console.log('Is connected:', botSocketSDKWithCallback.isConnected());
- * console.log('Connection state:', botSocketSDKWithCallback.getConnectionState());
- * 
- * // Batch subscribe to multiple workflows
- * await botSocketSDKWithCallback.batchSubscribeToBots(['workflow1', 'workflow2'], 'user-123');
+ * console.log('Is connected:', chatSocketSDKWithCallback.isConnected());
+ * console.log('Connection state:', chatSocketSDKWithCallback.getConnectionState());
  * 
  * // Update event handlers dynamically
- * botSocketSDKWithCallback.updateEventHandlers({
- *   onBotHistory: (history) => {
- *     console.log('Received history with', history.length, 'messages');
+ * chatSocketSDKWithCallback.updateEventHandlers({
+ *   onThreadHistory: (history) => {
+ *     console.log('Received updated history with', history.length, 'messages');
+ *   },
+ *   onReceiveChat: (message) => {
+ *     console.log('New agent response received:', message.text);
  *   }
  * });
  * 
  * // Clean up when done
- * await botSocketSDKWithCallback.dispose();
+ * await chatSocketSDKWithCallback.dispose();
  * ```
  */
 
-export default BotSocketSDK; 
+export default SocketSDK; 

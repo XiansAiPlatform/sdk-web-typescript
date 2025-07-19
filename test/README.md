@@ -123,7 +123,7 @@ npx vitest
 npx vitest test/RpcSDK.test.ts
 
 # Run integration tests only
-npx vitest test/RpcSDK.integration.test.ts
+npx vitest test/ChatSocketSDK.integration.test.ts
 
 # Run tests matching a pattern in the test name
 npx vitest --reporter=verbose --run -t "should work with real-world workflow"

@@ -1,535 +1,514 @@
-# Xians SDK TypeScript
+# XiansAi TypeScript/JavaScript SDK
 
-A **light-weight, framework-agnostic** wrapper that hides all WebSocket/SignalR complexity behind a handful of ergonomic methods.
+The XiansAi SDK provides both **WebSocket** and **REST** communication with XiansAi Server, enabling real-time chat capabilities and synchronous messaging for your applications.
+
+## Features
+
+- 🔄 **Real-time Communication**: WebSocket-based chat with automatic reconnection
+- 🌐 **HTTP REST API**: Synchronous messaging and conversation management  
+- 🔐 **Multiple Authentication**: API Key, JWT Token, or JWT Callback support
+- 📝 **TypeScript Support**: Full type definitions and IntelliSense
+- 🛡️ **Error Handling**: Comprehensive error handling and logging
+- ⚡ **Async/Await**: Modern promise-based API
 
 ## Installation
 
-Install the package using npm:
-
 ```bash
-npm install @99xio/xians-sdk-typescript
-```
-
-Or using yarn:
-
-```bash
-yarn add @99xio/xians-sdk-typescript
-```
-
-## Import
-
-```ts
-import AgentSDK from '@99xio/xians-sdk-typescript';
-//   or
-import { AgentSDK } from '@99xio/xians-sdk-typescript';
-
-// Import types
-import { type ChatMessageData, type HandoffMessage } from '@99xio/xians-sdk-typescript';
+npm install @xiansai/sdk
+# or
+yarn add @xiansai/sdk
 ```
 
 ## Quick Start
 
-```ts
-import AgentSDK from '@99xio/xians-sdk-typescript';
-
-// 1️⃣  Configure once (typically on app start-up)
-const sdk = new AgentSDK({
-  // ---- mandatory settings ----
-  agentWebsocketUrl: '<YOUR_BOT_BACKEND_WEBSOCKET_URL>',
-  Authorization:      'Bearer <YOUR_API_KEY>',
-  tenantId:           '<YOUR_TENANT_ID>',
-  participantId:      '<PARTICIPANT_ID>',
-  
-  // ---- optional ----
-  getDefaultData: () => {
-    // Return contextual data that changes with application state
-    const context = { currentStep: getCurrentStep(), userId: getUserId() };
-    return JSON.stringify(context);
-  }
-});
-
-// 2️⃣  Establish all agent connections with their workflow type and workflow id
-await sdk.connect([
-  {
-    workflowType: 'MyAgentType',  // optional, if not provided, the workflowId must be provided
-    workflowId: 'agent_workflow_123', // optional, if not provided, the workflowType must be provided
-  }
-]);
-
-// 3️⃣  Subscribe to specific message types (recommended)
-const stopChatMessages = sdk.subscribeToChatMessages((chat) => {
-  console.log('💬 Chat message:', chat.text);
-  console.log('From workflow:', chat.workflowId);
-});
-const stopHandoffs = sdk.subscribeToHandoffs((handoff) => {
-  console.log('🔄 Handoff to:', handoff.workflowId);
-});
-const stopDataMessages = sdk.subscribeToData('my_service', ['DocumentResponse'], (data) => {
-  console.log('📄 Data received:', data);
-});
-
-// Alternative: Listen to all messages (less recommended)
-const stopAll = sdk.on('message', (evt) => {
-  console.log('📨 Any message', evt);
-});
-
-// 4️⃣  Talk to an agent
-await sdk.sendChat('MyAgentType', 'Hello there!');
-await sdk.sendData('MyAgentType', { some: 'json' });
-
-// 5️⃣  Gracefully shut down when navigating away
-await sdk.disconnect();
-```
-
-## API
-
-### `new AgentSDK(options)`
-Creates a new SDK instance. Internally it re-uses a **singleton** WebSocket hub, so multiple instances share the same connections.
-
-#### `options`
-Configuration object with required settings:
-
-```ts
-interface AgentSDKOptions {
-  agentWebsocketUrl: string;  // Full WebSocket hub URL
-  Authorization: string;      // Bearer token or similar authentication credential
-  tenantId: string;          // Tenant identifier for multi-tenant applications
-  participantId: string;     // Unique identifier for the participant/user
-  getDefaultData?: () => string | undefined; // Optional function to get contextual data for each chat
-}
-```
-
----
-
-### `.connect(agents)` → `Promise<void>`
-Initialises the underlying `WebSocketHub` and opens SignalR connections for **all** configured agents.
-
-**Parameters:**
-- `agents`: Array of agent configurations
-
-```ts
-interface AgentFlow {
-  workflowType?: string; // Server-side unique workflow identifier (optional if workflowId provided)
-  workflowId?: string;   // Optional workflow instance ID (optional if workflowType provided)
-}
-```
-
-### `.disconnect()` → `Promise<void>`
-Stops **all** active connections and cleans up resources.
-
-### `.sendChat(id, text, data?, scope?, hint?)` → `Promise<void>`
-Sends a plain-text chat message to the specified agent.
-
-**Parameters:**
-- `id`: The workflow ID or workflow type of the target agent
-- `text`: The message text to send
-- `data`: Optional additional data to include with the message (default: `{}`)
-- `scope`: Optional scope for the message
-- `hint`: Optional hint for the message
-
-The method automatically includes default data from the `getDefaultData()` function (if configured).
+### WebSocket Communication (Real-time)
 
 ```typescript
-// Basic usage
-await sdk.sendChat('DocumentDataFlow', 'Hello there!');
+import { SocketSDK, MessageType } from '@xiansai/sdk';
 
-// With additional data
-await sdk.sendChat('DocumentDataFlow', 'Process this', { documentId: '123' });
-
-// With scope and hint
-await sdk.sendChat('DocumentDataFlow', 'Special request', {}, 'priority', 'urgent');
-```
-
-### `.sendData(id, data, scope?)` → `Promise<void>`
-Sends a structured JSON payload as a `Data` message.
-
-**Parameters:**
-- `id`: The workflow ID or workflow type of the target agent
-- `data`: The data payload to send (must be JSON-serializable)
-- `scope`: Optional scope for the message
-
----
-
-## Dynamic Default Data
-
-The SDK supports dynamic default data that gets automatically included with every chat message. This is useful for sending contextual information that changes based on the current application state.
-
-### Configuration
-
-Set up the `getDefaultData` function when creating the SDK instance:
-
-```typescript
-import AgentSDK from '@99xio/xians-sdk-typescript';
-
-const sdk = new AgentSDK({
-  agentWebsocketUrl: 'wss://your-hub.com/hub',
-  Authorization: 'Bearer your-token',
-  tenantId: 'your-tenant',
-  participantId: 'user-123',
-  getDefaultData: () => {
-    // Return contextual data as JSON string
-    const currentContext = {
-      documentId: getCurrentDocumentId(),
-      stepIndex: getCurrentStepIndex(),
-      userPreferences: getUserPreferences()
-    };
-    return JSON.stringify(currentContext);
-  }
-});
-```
-
-### Usage
-
-- **Automatic inclusion**: Default data is automatically included with every `sendChat()` call
-- **Dynamic computation**: The function is called fresh for each message, ensuring up-to-date context
-
-```typescript
-// Uses dynamic default data
-await sdk.sendChat('workflow_id', 'Hello');
-
-// Additional data is merged with default data
-await sdk.sendChat('workflow_id', 'Process this', { priority: 'urgent' });
-```
-
----
-
-## Message Subscriptions
-
-The SDK provides **specialized subscription methods** for different message types, offering clean separation of concerns and type safety.
-
-### `.subscribeToChatMessages(callback)` → `() => void`
-Subscribe specifically to chat messages (regular conversation messages).
-
-```typescript
-import { type ChatMessageData } from '@99xio/xians-sdk-typescript';
-
-const unsubscribe = sdk.subscribeToChatMessages((chat: ChatMessageData) => {
-  console.log('Chat received:', chat.text);
-  console.log('From workflow:', chat.workflowId);
-  console.log('Direction:', chat.direction); // 'Incoming' | 'Outgoing'
-});
-
-// Cleanup when done
-unsubscribe();
-```
-
-**ChatMessageData Interface:**
-```typescript
-interface ChatMessageData {
-  text: string;
-  scope?: string;
-  hint?: string;
-  direction: 'Incoming' | 'Outgoing';
-  timestamp: Date;
-  threadId: string;
-  data?: any;
-  isHistorical: boolean;
-}
-```
-
-### `.subscribeToData(subscriberId, messageTypes, callback)` → `() => void`
-Subscribe to structured data messages from agents.
-
-```typescript
-const unsubscribe = sdk.subscribeToData(
-  'my_service',
-  ['DocumentResponse', 'ActivityLog'],
-  (data: any) => {
-    console.log('Data received:', data);
-    if (data.messageType === 'DocumentResponse') {
-      handleDocumentResponse(data);
+const socketSDK = new SocketSDK({
+  tenantId: 'your-tenant-id',
+  apiKey: 'your-api-key',
+  serverUrl: 'https://your-server.com',
+  eventHandlers: {
+    onReceiveChat: (message) => {
+      console.log('New message:', message.text);
+    },
+    onInboundProcessed: (threadId) => {
+      console.log('Message processed:', threadId);
     }
   }
-);
+});
+
+// Connect and subscribe
+await socketSDK.connect();
+await socketSDK.subscribeToAgent('workflow-id', 'user-123');
+
+// Send a message
+await socketSDK.sendInboundMessage({
+  participantId: 'user-123',
+  workflowType: 'customer-support',
+  text: 'Hello, I need help!',
+  data: { priority: 'high' }
+}, MessageType.Chat);
 ```
 
-### `.subscribeToHandoffs(callback)` → `() => void`
-Subscribe specifically to handoff messages (agent-to-agent transitions).
+### REST Communication (Synchronous)
 
 ```typescript
-import { type HandoffMessage } from '@99xio/xians-sdk-typescript';
+import { RestSDK } from '@xiansai/sdk';
 
-const unsubscribe = sdk.subscribeToHandoffs((handoff: HandoffMessage) => {
-  console.log('Handoff to:', handoff.workflowId);
-  console.log('Message:', handoff.text);
-  
-  // Handle navigation or UI updates
-  if (!handoff.isHistorical) {
-    navigateToWorkflow(handoff.workflowId);
+const restSDK = new RestSDK({
+  tenantId: 'your-tenant-id',
+  apiKey: 'your-api-key',
+  serverUrl: 'https://your-server.com'
+});
+
+// Send and wait for response
+const result = await restSDK.converse({
+  participantId: 'user-123',
+  workflow: 'customer-support',
+  type: 'Chat',
+  text: 'What is my order status?',
+  timeoutSeconds: 30
+});
+
+if (result.success && result.data) {
+  console.log('Received responses:', result.data);
+}
+```
+
+## Authentication Methods
+
+### 1. API Key Authentication
+
+```typescript
+const sdk = new SocketSDK({
+  tenantId: 'your-tenant-id',
+  apiKey: 'sk-1234567890',
+  serverUrl: 'https://your-server.com'
+});
+```
+
+### 2. JWT Token Authentication
+
+```typescript
+const sdk = new SocketSDK({
+  tenantId: 'your-tenant-id',
+  jwtToken: 'your-jwt-token',
+  serverUrl: 'https://your-server.com'
+});
+```
+
+### 3. JWT Callback Authentication (Recommended)
+
+```typescript
+const sdk = new SocketSDK({
+  tenantId: 'your-tenant-id',
+  serverUrl: 'https://your-server.com',
+  getJwtToken: async () => {
+    const response = await fetch('/api/auth/token');
+    const { token } = await response.json();
+    return token;
   }
 });
 ```
 
-**HandoffMessage Interface:**
+## API Reference
+
+### SocketSDK (WebSocket)
+
+#### Methods
+
+##### `connect(): Promise<void>`
+Establishes WebSocket connection to the server.
+
+##### `disconnect(): Promise<void>`
+Closes the WebSocket connection.
+
+##### `sendInboundMessage(request, messageType): Promise<void>`
+Sends a message to the workflow via WebSocket.
+
 ```typescript
-interface HandoffMessage {
-  text: string;
+await socketSDK.sendInboundMessage({
+  participantId: 'user-123',
+  workflowType: 'support',
+  text: 'Hello!',
+  data: { context: 'help' }
+}, MessageType.Chat);
+```
+
+##### `subscribeToAgent(workflow, participantId): Promise<void>`
+Subscribes to receive messages from a specific workflow.
+
+##### `getThreadHistory(workflow, participantId, page?, pageSize?, scope?): Promise<void>`
+Requests conversation history (results come via `onThreadHistory` event).
+
+#### Event Handlers
+
+```typescript
+const eventHandlers = {
+  onThreadHistory: (history: Message[]) => {
+    console.log('Received history:', history);
+  },
+  onInboundProcessed: (threadId: string) => {
+    console.log('Message processed:', threadId);
+  },
+  onReceiveChat: (message: Message) => {
+    console.log('Chat message:', message.text);
+  },
+  onReceiveData: (message: Message) => {
+    console.log('Data message:', message.data);
+  },
+  onError: (error: string) => {
+    console.error('Error:', error);
+  },
+  onConnectionStateChanged: (oldState, newState) => {
+    console.log(`Connection: ${oldState} → ${newState}`);
+  }
+};
+```
+
+### RestSDK (HTTP)
+
+#### Methods
+
+##### `send(request): Promise<RestResponse<any>>`
+Sends a message without waiting for response.
+
+```typescript
+const result = await restSDK.send({
+  participantId: 'user-123',
+  workflow: 'support',
+  type: 'Chat',
+  text: 'Hello!',
+  data: { context: 'help' }
+});
+```
+
+##### `converse(request): Promise<RestResponse<Message[]>>`
+Sends a message and waits synchronously for response.
+
+```typescript
+const result = await restSDK.converse({
+  participantId: 'user-123',
+  workflow: 'support',
+  type: 'Chat',
+  text: 'What can you help me with?',
+  timeoutSeconds: 30
+});
+```
+
+##### `getHistory(request): Promise<RestResponse<Message[]>>`
+Retrieves conversation history.
+
+```typescript
+const result = await restSDK.getHistory({
+  workflow: 'support',
+  participantId: 'user-123',
+  page: 1,
+  pageSize: 20,
+  scope: 'support-tickets'
+});
+```
+
+## Message Types
+
+### MessageRequest (WebSocket)
+```typescript
+interface MessageRequest {
+  requestId?: string;
+  participantId: string;
+  workflowId?: string;
+  workflowType?: string;
   scope?: string;
-  direction: 'Incoming' | 'Outgoing';
-  timestamp: Date;
-  threadId: string;
+  hint?: string;
   data?: any;
-  isHistorical: boolean;
+  text?: string;
+  threadId?: string;
+  authorization?: string;
 }
 ```
 
----
+### RestMessageRequest (REST)
+```typescript
+interface RestMessageRequest {
+  requestId?: string;
+  participantId: string;
+  workflow: string;
+  type: string;
+  text?: string;
+  data?: any;
+  timeoutSeconds?: number;
+}
+```
 
-## Additional Methods
+### Message (Response)
+```typescript
+interface Message {
+  id: string;
+  createdAt: string;
+  direction: 'Incoming' | 'Outgoing';
+  messageType?: string;
+  text?: string;
+  data?: any;
+  hint?: string;
+  requestId?: string;
+  participantId: string;
+  workflowId: string;
+  workflowType: string;
+  scope?: string;
+}
+```
 
-### `.refreshThreadHistory(id, scope)` → `Promise<boolean>`
-Refresh thread history for a specific workflow by requesting it from the server.
+## Configuration Options
 
-**Parameters:**
-- `id`: The workflow ID or workflow type to refresh history for
-- `scope`: Scope for the history request (required)
+### SocketSDKOptions
+```typescript
+interface SocketSDKOptions {
+  tenantId: string;
+  apiKey?: string;
+  jwtToken?: string;
+  getJwtToken?: () => Promise<string> | string;
+  serverUrl: string;
+  logger?: (level: string, message: string, data?: any) => void;
+  namespace?: string;
+  autoReconnect?: boolean;
+  reconnectDelay?: number;
+  maxReconnectAttempts?: number;
+  connectionTimeout?: number;
+  eventHandlers?: EventHandlers;
+}
+```
 
-**Returns:** `true` if the request was successful, `false` otherwise.
+### RestSDKOptions
+```typescript
+interface RestSDKOptions {
+  tenantId: string;
+  apiKey?: string;
+  jwtToken?: string;
+  getJwtToken?: () => Promise<string> | string;
+  serverUrl: string;
+  logger?: (level: string, message: string, data?: any) => void;
+  namespace?: string;
+  requestTimeout?: number;
+  defaultConverseTimeout?: number;
+  maxConverseTimeout?: number;
+}
+```
 
-### `.getConnectionStates()` → `Map<number, ConnectionState>`
-Get current connection states for all agents.
+## Best Practices
 
-### `.getChatHistory(workflowType)` → `Message[]`
-Retrieve chat history for a given workflow.
+### When to Use WebSocket vs REST
 
-### `.getStats()` → `object`
-Get hub statistics for debugging.
+#### Use **SocketSDK** (WebSocket) when:
+- You need real-time, bidirectional communication
+- You want to receive immediate notifications when agents respond
+- You're building a chat interface or real-time dashboard
+- You need to maintain persistent connections with automatic reconnection
 
-### `.getAgentConnectionStateById(id)` → `ConnectionState | undefined`
-Get connection state for a specific agent.
+#### Use **RestSDK** (HTTP) when:
+- You need synchronous request-response patterns
+- You're integrating with existing REST-based architectures
+- You need simpler error handling and don't require real-time updates
+- You're building APIs, webhooks, or batch processing systems
 
----
+### Combining Both SDKs
+
+You can use both SDKs together for different use cases:
+
+```typescript
+import { SocketSDK, RestSDK, MessageType } from '@xiansai/sdk';
+
+// Real-time notifications
+const socketSDK = new SocketSDK({
+  tenantId: 'my-tenant',
+  apiKey: 'my-api-key',
+  serverUrl: 'https://api.example.com',
+  eventHandlers: {
+    onReceiveChat: (message) => {
+      updateUI(message);
+    }
+  }
+});
+
+// Synchronous operations
+const restSDK = new RestSDK({
+  tenantId: 'my-tenant',
+  apiKey: 'my-api-key',
+  serverUrl: 'https://api.example.com'
+});
+
+// Connect WebSocket for real-time updates
+await socketSDK.connect();
+await socketSDK.subscribeToAgent('support', 'user-123');
+
+// Use REST for initial data loading
+const history = await restSDK.getHistory({
+  workflow: 'support',
+  participantId: 'user-123',
+  page: 1,
+  pageSize: 50
+});
+
+// Send urgent messages via REST (with timeout)
+const urgentResponse = await restSDK.converse({
+  participantId: 'user-123',
+  workflow: 'support',
+  type: 'Chat',
+  text: 'URGENT: System is down!',
+  timeoutSeconds: 10
+});
+```
+
+### Error Handling
+
+```typescript
+// WebSocket error handling
+const socketSDK = new SocketSDK({
+  // ... config
+  eventHandlers: {
+    onError: (error) => {
+      console.error('WebSocket error:', error);
+      // Handle reconnection logic
+    },
+    onConnectionStateChanged: (oldState, newState) => {
+      if (newState === ConnectionState.Disconnected) {
+        // Notify user of disconnection
+        showNotification('Connection lost. Attempting to reconnect...');
+      }
+    }
+  }
+});
+
+// REST error handling
+try {
+  const result = await restSDK.converse(request);
+  if (!result.success) {
+    console.error('Request failed:', result.error);
+    if (result.statusCode === 401) {
+      // Handle authentication error
+      redirectToLogin();
+    }
+  }
+} catch (error) {
+  console.error('Network error:', error);
+  // Handle network failures
+}
+```
+
+### Logging
+
+Both SDKs support custom logging:
+
+```typescript
+const logger = (level: string, message: string, data?: any) => {
+  // Send to your logging service
+  console.log(`[${level.toUpperCase()}] ${message}`, data);
+};
+
+const sdk = new SocketSDK({
+  // ... config
+  logger,
+  namespace: 'MyApp'
+});
+```
+
+## Testing
+
+### Integration Tests
+
+The SDK includes comprehensive integration tests. To run them:
+
+```bash
+# Create test/.env file with your credentials
+echo "API_KEY=your-api-key" > test/.env
+echo "SERVER_URL=https://your-server.com" >> test/.env
+echo "TENANT_ID=your-tenant-id" >> test/.env
+echo "PARTICIPANT_ID=test-user" >> test/.env
+echo "WORKFLOW_TYPE=test-workflow" >> test/.env
+
+# Run tests
+npm test
+```
+
+### Example Test Configuration
+
+```bash
+# test/.env
+API_KEY=sk-1234567890abcdef
+SERVER_URL=https://api.xiansai.com
+TENANT_ID=my-company
+PARTICIPANT_ID=test-user-123
+WORKFLOW_TYPE=customer-support
+```
 
 ## TypeScript Support
 
-This package is written in TypeScript and provides full type definitions. All interfaces and types are exported:
+The SDK is built with TypeScript and provides full type definitions:
 
 ```typescript
-import { 
-  AgentSDK, 
-  type AgentSDKOptions,
-  type ChatMessageData,
-  type HandoffMessage 
-} from '@99xio/xians-sdk-typescript';
+import { SocketSDK, RestSDK, Message, MessageType, ConnectionState } from '@xiansai/sdk';
+
+// Full IntelliSense and type checking
+const message: Message = {
+  id: '123',
+  createdAt: new Date().toISOString(),
+  direction: 'Incoming',
+  text: 'Hello!',
+  participantId: 'user-123',
+  workflowId: 'workflow-456',
+  workflowType: 'support'
+};
 ```
 
----
+## Troubleshooting
 
-## React Integration
+### Common Issues
 
-The SDK works seamlessly with React. Here are some example hooks:
+1. **Connection Failures**
+   - Verify `serverUrl` is correct
+   - Check network connectivity
+   - Ensure authentication credentials are valid
 
-```typescript
-import { useEffect, useState } from 'react';
-import { type ChatMessageData } from '@99xio/xians-sdk-typescript';
+2. **Authentication Errors**
+   - Verify `tenantId`, `apiKey`, or JWT token
+   - Check token expiration for JWT authentication
+   - Ensure proper permissions are granted
 
-function useChatMessages(sdk: AgentSDK) {
-  const [messages, setMessages] = useState<ChatMessageData[]>([]);
+3. **Message Not Received**
+   - Verify WebSocket subscription with `subscribeToAgent()`
+   - Check event handlers are properly configured
+   - Ensure workflow is running and configured to respond
 
-  useEffect(() => {
-    const unsubscribe = sdk.subscribeToChatMessages((chat) => {
-      setMessages(prev => [...prev, chat]);
-    });
+4. **Timeout Issues**
+   - Increase `timeoutSeconds` for REST operations
+   - Check `maxConverseTimeout` configuration
+   - Verify workflow response times
 
-    return unsubscribe;
-  }, [sdk]);
+### Debug Logging
 
-  return messages;
-}
-```
-
----
-
-## Error Handling
-
-The SDK provides comprehensive error handling with detailed error messages:
+Enable debug logging to troubleshoot issues:
 
 ```typescript
-try {
-  await sdk.connect([{ workflowType: 'MyAgent' }]);
-} catch (error) {
-  console.error('Connection failed:', error.message);
-  // Error messages include context like:
-  // "[AgentSDK] Failed to establish connections: [ConnectionManager] Failed to connect to agent MyAgent: Connection timeout"
-}
-```
-
-All public methods validate their inputs and throw descriptive errors when:
-- Required parameters are missing or invalid
-- SDK is not initialized when needed
-- Network or server errors occur
-
----
-
-## Singleton Pattern
-
-The SDK supports a singleton pattern for shared instances across your application:
-
-```typescript
-// Initialize shared instance (usually in app startup)
-const sdk = AgentSDK.initShared(options);
-
-// Get shared instance elsewhere in your app
-const sdk = AgentSDK.getShared();
-
-// Reset shared instance (useful for testing)
-await AgentSDK.resetShared();
-```
-
----
-
-## RPC SDK - Interface Proxy with Logging
-
-The SDK includes an RPC (Remote Procedure Call) utility that allows you to create proxies of TypeScript interfaces. When methods are called on these proxies, they automatically log the method name and parameters.
-
-### Basic Usage
-
-```typescript
-import { RpcSDK } from '@99xio/xians-sdk-typescript';
-
-// 1. Define your interface
-interface UserService {
-  getUser(id: string): Promise<User>;
-  updateUser(id: string, data: Partial<User>): Promise<void>;
-  deleteUser(id: string): Promise<boolean>;
-}
-
-// 2. Create RPC SDK instance
-const rpcSDK = new RpcSDK();
-
-// 3. Create a proxy for your interface
-const userService = rpcSDK.createProxy<UserService>('UserService');
-
-// 4. Call methods - they will be automatically logged
-await userService.getUser('123');
-// Logs: [RPC] Method: UserService.getUser, Args: ['123']
-
-await userService.updateUser('123', { name: 'John' });
-// Logs: [RPC] Method: UserService.updateUser, Args: ['123', { name: 'John' }]
-```
-
-### Advanced Configuration
-
-```typescript
-const rpcSDK = new RpcSDK({
-  // Custom logger function
-  logger: (methodName, args) => {
-    console.log(`🚀 ${methodName} called with:`, args);
-  },
-  
-  // Add namespace prefix
-  namespace: 'MyApp',
-  
-  // Log return values too
-  logReturnValues: true,
-  
-  // Custom method handler
-  onMethodCall: (methodName, args) => {
-    // You can return mock data or forward to actual implementation
-    if (methodName.includes('getUser')) {
-      return { id: args[0], name: 'Mock User' };
+const sdk = new SocketSDK({
+  // ... config
+  logger: (level, message, data) => {
+    if (level === 'debug' || level === 'error') {
+      console.log(`[${level}] ${message}`, data);
     }
   }
 });
 ```
-
-### Wrapping Existing Implementations
-
-You can also wrap existing implementations to add logging:
-
-```typescript
-// Existing implementation
-class ActualUserService implements UserService {
-  async getUser(id: string) { /* ... */ }
-  async updateUser(id: string, data: Partial<User>) { /* ... */ }
-  async deleteUser(id: string) { /* ... */ }
-}
-
-// Wrap it with logging
-const service = new ActualUserService();
-const wrappedService = rpcSDK.wrapImplementation(service, 'UserService');
-
-// Now all calls are logged AND executed
-const user = await wrappedService.getUser('123');
-```
-
-### Use Cases
-
-1. **Debugging**: Log all method calls during development
-2. **Mocking**: Create mock services for testing
-3. **Analytics**: Track which methods are called and how often
-4. **RPC Bridge**: Foundation for remote procedure calls over WebSocket
-5. **API Gateway**: Log and route method calls to different services
-
-### Example: Integration with AgentSDK
-
-```typescript
-// Create an RPC interface for agent communication
-interface AgentRPC {
-  sendMessage(agentId: string, message: string): Promise<void>;
-  requestData(agentId: string, dataType: string): Promise<any>;
-}
-
-const rpcSDK = new RpcSDK({
-  onMethodCall: async (method, args) => {
-    if (method.includes('sendMessage')) {
-      const [agentId, message] = args;
-      await sdk.sendChat(agentId, message);
-    }
-    // ... handle other methods
-  }
-});
-
-const agentRPC = rpcSDK.createProxy<AgentRPC>('AgentRPC');
-await agentRPC.sendMessage('MyAgent', 'Hello!');
-```
-
----
-
-## Dependencies
-
-- `@microsoft/signalr`: For WebSocket/SignalR communication
-
----
-
-## License
-
-MIT
-
----
 
 ## Contributing
 
-This package is extracted from a larger application. If you need features or find bugs, please create an issue in the repository.
+Contributions are welcome! Please read our contributing guidelines and submit pull requests to our repository.
 
----
+## License
 
-## Building from Source
+This SDK is licensed under the MIT License. See the LICENSE file for details.
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd sdk-web-typescript
+## Support
 
-# Install dependencies
-npm install
-
-# Build the package
-npm run build
-
-# The built files will be in the dist/ directory
-```
-
-## Publishing
-
-```bash
-# Make sure you're logged in to npm
-npm login
-
-# Publish the package (scoped packages require --access public)
-npm publish --access public
-```
-
-## Changelog
-
-See [CHANGELOG.md](./CHANGELOG.md) for version history and changes. 
+For support, please contact our team or visit our documentation at [https://docs.xiansai.com](https://docs.xiansai.com). 
