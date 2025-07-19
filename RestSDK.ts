@@ -6,7 +6,8 @@ import {
   Message, 
   BaseMessageRequest, 
   BaseSDKOptions, 
-  AuthType 
+  AuthType,
+  SDK_DEFAULTS
 } from './types';
 
 /**
@@ -14,8 +15,6 @@ import {
  * Similar to MessageRequest but tailored for REST endpoints
  */
 export interface RestMessageRequest extends BaseMessageRequest {
-  workflow: string;
-  type: string;
   timeoutSeconds?: number;
 }
 
@@ -42,6 +41,15 @@ export interface HistoryRequest {
 
 /**
  * Configuration options for the Rest SDK
+ * 
+ * @example
+ * ```typescript
+ * const restSDK = new RestSDK({
+ *   tenantId: 'my-tenant',
+ *   apiKey: 'sk-123',
+ *   serverUrl: 'https://api.example.com'
+ * });
+ * ```
  */
 export interface RestSDKOptions extends BaseSDKOptions {
   
@@ -85,7 +93,7 @@ export class RestSDK {
     
     this.options = {
       logger: (level, message, data) => console.log(`[${level.toUpperCase()}] ${message}`, data || ''),
-      requestTimeout: 30000,
+      requestTimeout: SDK_DEFAULTS.requestTimeout,
       defaultConverseTimeout: 60,
       maxConverseTimeout: 300,
       ...options
@@ -131,7 +139,7 @@ export class RestSDK {
 
   /**
    * Makes an HTTP request with authentication and error handling
-   * Follows the server's authentication pattern: tenantId + apikey in query params OR Authorization header + tenantId
+   * Supports multiple authentication methods: apikey query param, Authorization header, or access_token query param fallback
    */
   private async makeRequest<T>(
     endpoint: string, 
@@ -170,9 +178,14 @@ export class RestSDK {
         'Content-Type': 'application/json',
       };
 
-      // For JWT authentication: add Authorization header
+      // For JWT authentication: use Authorization header (preferred method)
+      // Note: RestSDK primarily uses Authorization header, but server also supports access_token query parameter
       if (this.options.jwtToken || this.options.getJwtToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
+        
+        if (this.options.logger) {
+          this.options.logger('debug', 'Using Authorization header for JWT authentication');
+        }
       }
 
       const requestOptions: RequestInit = {

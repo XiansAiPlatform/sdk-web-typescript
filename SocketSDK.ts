@@ -8,7 +8,10 @@ import {
   Message, 
   BaseMessageRequest, 
   BaseSDKOptions, 
-  AuthType 
+  AuthType,
+  ConnectionState,
+  SDK_DEFAULTS,
+  BaseEventHandlers
 } from './types';
 
 /**
@@ -16,40 +19,52 @@ import {
  * Matches ChatOrDataRequest from C# backend
  */
 export interface MessageRequest extends BaseMessageRequest {
-  workflowId?: string;
-  workflowType?: string;
   threadId?: string;
-  authorization?: string;
 }
 
-/**
- * Connection state enum
- */
-export enum ConnectionState {
-  Disconnected = 'Disconnected',
-  Connecting = 'Connecting',
-  Connected = 'Connected',
-  Disconnecting = 'Disconnecting',
-  Reconnecting = 'Reconnecting'
-}
+
 
 /**
- * Event handlers interface
+ * Event handlers interface for SocketSDK (extends base handlers)
  */
-export interface EventHandlers {
+export interface EventHandlers extends BaseEventHandlers {
+  /**
+   * Called when thread history is received (SocketSDK-specific)
+   */
   onThreadHistory?: (history: Message[]) => void;
+  
+  /**
+   * Called when an inbound message is processed (SocketSDK-specific)
+   */
   onInboundProcessed?: (threadId: string) => void;
-  onReceiveChat?: (message: Message) => void;
-  onReceiveData?: (message: Message) => void;
-  onError?: (error: string) => void;
+  
+  /**
+   * Called when a connection error occurs (SocketSDK-specific)
+   */
   onConnectionError?: (error: { statusCode: number; message: string }) => void;
+  
+  /**
+   * Called when connection state changes (SocketSDK-specific)
+   */
   onConnectionStateChanged?: (oldState: ConnectionState, newState: ConnectionState) => void;
-  onReconnecting?: (error?: Error) => void;
+  
+  /**
+   * Called when reconnected successfully (SocketSDK-specific, different signature than base)
+   */
   onReconnected?: (connectionId?: string) => void;
 }
 
 /**
  * Configuration options for the Chat Socket SDK
+ * 
+ * @example
+ * ```typescript
+ * const socketSDK = new SocketSDK({
+ *   tenantId: 'my-tenant',
+ *   apiKey: 'sk-123',
+ *   serverUrl: 'https://api.example.com'
+ * });
+ * ```
  */
 export interface SocketSDKOptions extends BaseSDKOptions {
   
@@ -80,7 +95,13 @@ export interface SocketSDKOptions extends BaseSDKOptions {
 }
 
 /**
- * Chat Socket SDK class for real-time chat communication
+ * Chat Socket SDK class for real-time chat communication using SignalR
+ * 
+ * Supports consistent authentication methods across all SDKs:
+ * - API key authentication: Uses 'apikey' query parameter (recommended for consistent auth)
+ * - JWT authentication: Uses 'access_token' query parameter + Authorization header via SignalR accessTokenFactory
+ * 
+ * The SDK automatically handles reconnection and provides event-driven communication.
  */
 export class SocketSDK {
   private options: SocketSDKOptions;
@@ -107,10 +128,10 @@ export class SocketSDK {
     
     this.options = {
       logger: (level, message, data) => console.log(`[${level.toUpperCase()}] ${message}`, data || ''),
-      autoReconnect: true,
-      reconnectDelay: 5000,
-      maxReconnectAttempts: 5,
-      connectionTimeout: 30000,
+      autoReconnect: SDK_DEFAULTS.autoReconnect,
+      reconnectDelay: SDK_DEFAULTS.reconnectDelay,
+      maxReconnectAttempts: SDK_DEFAULTS.maxReconnectAttempts,
+      connectionTimeout: SDK_DEFAULTS.connectionTimeout,
       ...options
     };
 
@@ -158,6 +179,7 @@ export class SocketSDK {
 
   /**
    * Builds the complete connection URL with query parameters
+   * Supports consistent authentication methods: apikey for API keys, access_token for JWT
    */
   private async buildConnectionUrl(): Promise<string> {
     const url = new URL(`${this.options.serverUrl}/ws/chat`);
@@ -166,12 +188,15 @@ export class SocketSDK {
     url.searchParams.set('tenantId', this.options.tenantId);
     
     // Add authentication parameters based on the method used
+    // Use consistent parameter names with other SDKs and server expectations
     if (this.options.apiKey) {
+      // For API key authentication: use apikey parameter (consistent with other SDKs)
       url.searchParams.set('apikey', this.options.apiKey);
     } else if (this.options.getJwtToken) {
       try {
         const token = await this.options.getJwtToken();
-        url.searchParams.set('jwtToken', token);
+        // For JWT authentication: use access_token parameter (consistent with server expectations)
+        url.searchParams.set('access_token', token);
       } catch (error) {
         if (this.options.logger) {
           this.options.logger('error', 'Failed to get JWT token for connection URL', error);
@@ -179,14 +204,21 @@ export class SocketSDK {
         throw new Error(`Failed to get JWT token: ${error}`);
       }
     } else if (this.options.jwtToken) {
-      url.searchParams.set('jwtToken', this.options.jwtToken);
+      // For JWT authentication: use access_token parameter (consistent with server expectations)
+      url.searchParams.set('access_token', this.options.jwtToken);
     }
     
     const finalUrl = url.toString();
     
     // Debug logging to verify URL construction
     if (this.options.logger) {
-      this.options.logger('debug', 'Built connection URL', { url: finalUrl, tenantId: this.options.tenantId, hasApiKey: !!this.options.apiKey });
+      this.options.logger('debug', 'Built connection URL', { 
+        url: finalUrl.split('?')[0], // Log URL without sensitive tokens
+        tenantId: this.options.tenantId, 
+        authMethod: this.getAuthType(),
+        hasApiKey: !!this.options.apiKey,
+        hasJwtToken: !!(this.options.jwtToken || this.options.getJwtToken)
+      });
     }
     
     return finalUrl;
@@ -237,7 +269,7 @@ export class SocketSDK {
       if (this.options.logger) {
         this.options.logger('info', 'Attempting to reconnect', error);
       }
-      this.eventHandlers.onReconnecting?.(error);
+      this.eventHandlers.onReconnecting?.(error?.message);
     });
 
     this.connection.onreconnected((connectionId) => {
@@ -303,6 +335,17 @@ export class SocketSDK {
         });
       }
       this.eventHandlers.onReceiveData?.(message);
+    });
+
+    this.connection.on('ReceiveHandoff', (message: Message) => {
+      if (this.options.logger) {
+        this.options.logger('info', '🔔 [NEW-Pascal] Received agent handoff message via ReceiveHandoff', { 
+          messageId: message.id, 
+          direction: message.direction,
+          hasData: !!message.data
+        });
+      }
+      this.eventHandlers.onReceiveHandoff?.(message);
     });
 
     this.connection.on('Error', (error: string) => {
@@ -595,6 +638,7 @@ export class SocketSDK {
     }
     this.options.apiKey = apiKey;
     this.options.jwtToken = undefined;
+    this.options.getJwtToken = undefined;
     
     // Recreate connection with new auth
     this.recreateConnection();
@@ -609,6 +653,22 @@ export class SocketSDK {
     }
     this.options.jwtToken = jwtToken;
     this.options.apiKey = undefined;
+    this.options.getJwtToken = undefined;
+    
+    // Recreate connection with new auth
+    this.recreateConnection();
+  }
+
+  /**
+   * Updates the JWT token callback (switches to JWT callback authentication)
+   */
+  public updateJwtTokenCallback(getJwtToken: () => Promise<string> | string): void {
+    if (!getJwtToken) {
+      throw new Error('getJwtToken callback cannot be null');
+    }
+    this.options.getJwtToken = getJwtToken;
+    this.options.apiKey = undefined;
+    this.options.jwtToken = undefined;
     
     // Recreate connection with new auth
     this.recreateConnection();
@@ -675,6 +735,9 @@ export class SocketSDK {
  *     onReceiveData: (message) => {
  *       console.log('Agent sent data:', message.data);
  *     },
+ *     onReceiveHandoff: (message) => {
+ *       console.log('Agent handoff:', message);
+ *     },
  *     onError: (error) => {
  *       console.error('Chat error:', error);
  *     },
@@ -704,6 +767,9 @@ export class SocketSDK {
  *     },
  *     onReceiveChat: (message) => {
  *       console.log('Agent response:', message.text);
+ *     },
+ *     onReceiveHandoff: (message) => {
+ *       console.log('Handoff received:', message);
  *     }
  *   }
  * });
@@ -744,6 +810,9 @@ export class SocketSDK {
  *   },
  *   onReceiveChat: (message) => {
  *     console.log('New agent response received:', message.text);
+ *   },
+ *   onReceiveHandoff: (message) => {
+ *     console.log('New handoff received:', message);
  *   }
  * });
  * 

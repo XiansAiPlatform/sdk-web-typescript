@@ -11,26 +11,49 @@ export type {
   BaseMessageRequest,
   BaseSDKOptions,
   LoggerFunction,
-  AuthType
+  AuthType,
+  BaseEventHandlers,
+  BaseConnectionParams
 } from './types';
 
-// Export SocketSDK
-export { default as SocketSDK } from './SocketSDK';
+// Export unified interfaces
+export { ConnectionState, SDK_DEFAULTS } from './types';
+
+// Export SocketSDK types
 export type {
   MessageRequest,
-  ConnectionState,
   EventHandlers,
   SocketSDKOptions
 } from './SocketSDK';
 
-// Export RestSDK
-export { default as RestSDK } from './RestSDK';
+// Export RestSDK types  
 export type {
   RestMessageRequest,
   RestResponse,
   HistoryRequest,
   RestSDKOptions
 } from './RestSDK';
+
+// Export SseSDK types
+export type {
+  HeartbeatData,
+  SseEvent,
+  SseHeartbeatEvent,
+  SseMessageEvent,
+  SseErrorEvent,
+  SseConnectionEvent,
+  SseAnyEvent,
+  SseEventHandler,
+  SseEventHandlers,
+  SseConnectionParams,
+  SseSDKOptions
+} from './SseSDK';
+
+// Export SDK classes
+export { default as SocketSDK } from './SocketSDK';
+export { default as RestSDK } from './RestSDK';
+export { default as SseSDK } from './SseSDK';
+export { default as AgentSDK } from './AgentSDK';
 
 /**
  * Example usage of both SDKs:

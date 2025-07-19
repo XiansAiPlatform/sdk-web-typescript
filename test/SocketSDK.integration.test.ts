@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { config } from 'dotenv';
 import { join } from 'path';
-import SocketSDK, { MessageRequest, ConnectionState } from '../SocketSDK';
-import { Message, MessageType } from '../types';
+import SocketSDK, { MessageRequest } from '../SocketSDK';
+import { Message, MessageType, ConnectionState } from '../types';
 import { fail } from 'assert';
 
 // How to run this test:
@@ -28,6 +28,7 @@ describe('ChatSocketSDK Integration Tests', () => {
   let receivedInboundProcessed: string[] = [];
   let receivedChatMessages: Message[] = [];
   let receivedDataMessages: Message[] = [];
+  let receivedHandoffMessages: Message[] = [];
   let receivedErrors: string[] = [];
   let connectionStateChanges: Array<{ oldState: ConnectionState, newState: ConnectionState }> = [];
 
@@ -37,6 +38,7 @@ describe('ChatSocketSDK Integration Tests', () => {
     receivedInboundProcessed = [];
     receivedChatMessages = [];
     receivedDataMessages = [];
+    receivedHandoffMessages = [];
     receivedErrors = [];
     connectionStateChanges = [];
   });
@@ -72,6 +74,10 @@ describe('ChatSocketSDK Integration Tests', () => {
         onReceiveData: (message) => {
           console.log('🤖 AGENT RESPONSE (Data):', message);
           receivedDataMessages.push(message);
+        },
+        onReceiveHandoff: (message) => {
+          console.log('🔄 AGENT RESPONSE (Handoff):', message);
+          receivedHandoffMessages.push(message);
         },
         onError: (error) => {
           console.log('❌ Received error:', error);
@@ -150,17 +156,21 @@ describe('ChatSocketSDK Integration Tests', () => {
       console.log('  - Inbound processed confirmations:', receivedInboundProcessed.length);
       console.log('  - Agent chat messages received:', receivedChatMessages.length);
       console.log('  - Agent data messages received:', receivedDataMessages.length);
+      console.log('  - Agent handoff messages received:', receivedHandoffMessages.length);
       console.log('  - Thread history items:', receivedHistory.length);
       console.log('  - Errors:', receivedErrors.length);
       
-      const totalAgentMessages = receivedChatMessages.length + receivedDataMessages.length;
+      const totalAgentMessages = receivedChatMessages.length + receivedDataMessages.length + receivedHandoffMessages.length;
       if (totalAgentMessages > 0) {
         console.log('🎉 SUCCESS: Received agent responses!');
         receivedChatMessages.forEach((msg, index) => {
-          console.log(`  Chat ${index + 1}. [${msg.direction}] ${msg.text || 'No text'}`);
+          console.log(`  💬 Chat ${index + 1}. [${msg.direction}] ${msg.text || 'No text'}`);
         });
         receivedDataMessages.forEach((msg, index) => {
-          console.log(`  Data ${index + 1}. [${msg.direction}] ${JSON.stringify(msg.data) || 'No data'}`);
+          console.log(`  📊 Data ${index + 1}. [${msg.direction}] ${JSON.stringify(msg.data) || 'No data'}`);
+        });
+        receivedHandoffMessages.forEach((msg, index) => {
+          console.log(`  🔄 Handoff ${index + 1}. [${msg.direction}] ${msg.text || JSON.stringify(msg.data) || 'No content'}`);
         });
       } else {
         console.log('⚠️  No agent messages received (this might be expected if no workflow is running)');
@@ -363,4 +373,139 @@ describe('ChatSocketSDK Integration Tests', () => {
       throw error;
     }
   }, 10000);
+
+  // npx vitest -t "should handle different message event types including handoff"
+
+  it('should handle different message event types (Chat, Data, Handoff)', async () => {
+    const mockChatMessages: Message[] = [];
+    const mockDataMessages: Message[] = [];
+    const mockHandoffMessages: Message[] = [];
+    const mockErrors: string[] = [];
+    const mockConnections: Array<{ oldState: ConnectionState, newState: ConnectionState }> = [];
+
+    chatSDK = new SocketSDK({
+      tenantId: tenantId,
+      apiKey: apiKey,
+      serverUrl: serverUrl,
+      logger: mockLogger,
+      autoReconnect: true,
+      eventHandlers: {
+        onReceiveChat: (message) => {
+          console.log('💬 Chat message received:', message.text?.substring(0, 50) + '...');
+          mockChatMessages.push(message);
+        },
+        onReceiveData: (message) => {
+          console.log('📊 Data message received:', !!message.data ? 'Has data' : 'No data');
+          mockDataMessages.push(message);
+        },
+        onReceiveHandoff: (message) => {
+          console.log('🔄 Handoff message received:', message.id);
+          mockHandoffMessages.push(message);
+        },
+        onError: (error) => {
+          console.log('❌ Error received:', error);
+          mockErrors.push(error);
+        },
+        onConnectionStateChanged: (oldState, newState) => {
+          console.log('🔄 Connection state:', oldState, '->', newState);
+          mockConnections.push({ oldState, newState });
+        }
+      }
+    });
+
+    try {
+      console.log('🔌 Testing different message event types...');
+      
+      await chatSDK.connect();
+      expect(chatSDK.isConnected()).toBe(true);
+      
+      await chatSDK.subscribeToAgent(workflowType, participantId);
+
+      // Send a test message that might trigger different response types
+      const testRequest: MessageRequest = {
+        requestId: 'handoff-test-' + Date.now(),
+        participantId: participantId,
+        workflowType: workflowType,
+        text: 'Test message for different event types',
+        data: { testType: 'eventTypes' }
+      };
+
+      await chatSDK.sendInboundMessage(testRequest, MessageType.Chat);
+      console.log('✅ Test message sent');
+
+      // Wait for potential responses of different types
+      console.log('⏳ Waiting for various message types...');
+      await new Promise(resolve => setTimeout(resolve, 15000));
+
+      // Get thread history to see all message types
+      await chatSDK.getThreadHistory(workflowType, participantId, 0, 20);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      console.log('\n📊 Message Type Summary:');
+      console.log(`   💬 Chat messages: ${mockChatMessages.length}`);
+      console.log(`   📊 Data messages: ${mockDataMessages.length}`);
+      console.log(`   🔄 Handoff messages: ${mockHandoffMessages.length}`);
+      console.log(`   ❌ Errors: ${mockErrors.length}`);
+      console.log(`   🔗 Connection changes: ${mockConnections.length}`);
+
+      // Verify message structures
+      if (mockChatMessages.length > 0) {
+        console.log('\n💬 Chat Message Details:');
+        mockChatMessages.forEach((msg, index) => {
+          console.log(`   ${index + 1}. ID: ${msg.id}, Direction: ${msg.direction}, Text: ${msg.text?.substring(0, 100)}...`);
+          expect(msg).toHaveProperty('id');
+          expect(msg).toHaveProperty('direction');
+          expect(msg).toHaveProperty('participantId');
+          expect(msg).toHaveProperty('workflowId');
+        });
+        console.log('   ✅ Successfully received and validated Chat messages');
+      }
+
+      if (mockDataMessages.length > 0) {
+        console.log('\n📊 Data Message Details:');
+        mockDataMessages.forEach((msg, index) => {
+          console.log(`   ${index + 1}. ID: ${msg.id}, Direction: ${msg.direction}, Has data: ${!!msg.data}`);
+          expect(msg).toHaveProperty('id');
+          expect(msg).toHaveProperty('direction');
+          expect(msg).toHaveProperty('participantId');
+          expect(msg).toHaveProperty('workflowId');
+        });
+        console.log('   ✅ Successfully received and validated Data messages');
+      }
+
+      if (mockHandoffMessages.length > 0) {
+        console.log('\n🔄 Handoff Message Details:');
+        mockHandoffMessages.forEach((msg, index) => {
+          console.log(`   ${index + 1}. ID: ${msg.id}, Direction: ${msg.direction}`);
+          expect(msg).toHaveProperty('id');
+          expect(msg).toHaveProperty('direction');
+          expect(msg).toHaveProperty('participantId');
+          expect(msg).toHaveProperty('workflowId');
+        });
+        console.log('   ✅ Successfully received and validated Handoff messages');
+      }
+
+      const totalMessages = mockChatMessages.length + mockDataMessages.length + mockHandoffMessages.length;
+      if (totalMessages > 0) {
+        console.log(`\n🎉 Successfully received ${totalMessages} messages of various types!`);
+      } else {
+        console.log('\n📭 No messages received (may be expected if no workflow is active)');
+      }
+
+      // Verify connection was established
+      expect(mockConnections.length).toBeGreaterThan(0);
+      const connectedChange = mockConnections.find(c => c.newState === ConnectionState.Connected);
+      expect(connectedChange).toBeDefined();
+
+    } catch (error) {
+      if (error instanceof Error && (
+        error.message.includes('ECONNREFUSED') || 
+        error.message.includes('WebSocket')
+      )) {
+        console.warn(`⚠️  Server not available for message type test, skipping`);
+        return;
+      }
+      throw error;
+    }
+  }, 25000);
 }); 
