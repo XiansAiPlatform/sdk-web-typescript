@@ -103,7 +103,8 @@ describe('ChatSocketSDK Integration Tests', () => {
       const chatRequest: MessageRequest = {
         requestId: 'test-req-' + Date.now(),
         participantId: participantId,
-        workflowType: workflowType,
+        workflow: workflowType,
+        type: 'Chat',
         data: {
           documentId: 'd42d8b34-7c5e-43ce-9771-3eda01945369'
         },
@@ -425,7 +426,8 @@ describe('ChatSocketSDK Integration Tests', () => {
       const testRequest: MessageRequest = {
         requestId: 'handoff-test-' + Date.now(),
         participantId: participantId,
-        workflowType: workflowType,
+        workflow: workflowType,
+        type: 'Chat',
         text: 'Test message for different event types',
         data: { testType: 'eventTypes' }
       };

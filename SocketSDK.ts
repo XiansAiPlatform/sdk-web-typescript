@@ -678,6 +678,11 @@ export class SocketSDK {
    * Recreates the connection with new authentication
    */
   private async recreateConnection(): Promise<void> {
+    // Don't recreate if SDK has been disposed
+    if (this.isDisposed) {
+      return;
+    }
+    
     const wasConnected = this.isConnected();
     
     if (wasConnected) {
@@ -687,7 +692,7 @@ export class SocketSDK {
     // Clear the current connection
     this.connection = null;
     
-    if (wasConnected) {
+    if (wasConnected && !this.isDisposed) {
       await this.connect();
     }
   }

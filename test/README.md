@@ -1,232 +1,209 @@
-# SDK Tests
+# SDK Testing Guide
 
-This directory contains tests for both the RPC SDK and Socket SDK functionality using Vitest.
+This directory contains integration tests for the Flowmaxer.ai Web SDK.
 
-## Test Files
+## Test Setup
 
-### RpcSDK Tests
-- `RpcSDK.test.ts` - Unit tests for RPC SDK functionality
-  - Constructor validation tests
-  - HTTP request and response handling tests
-  - Logging and error handling tests
-  - URL construction tests
-- `RpcSDK.integration.test.ts` - Integration tests with real-world scenarios
-  - Document service integration tests
-  - Multiple request handling tests
-  - Error handling in integration scenarios
-
-### SocketSDK Tests
-- `SocketSDK.integration.test.ts` - Integration tests for Socket SDK functionality
-  - WebSocket connection tests
-  - Bot message sending and receiving tests
-  - Bot history retrieval tests
-  - Multiple bot subscription tests
-  - Bot metrics retrieval tests
-  - Authentication and error handling tests
-
-## Configuration
-
-### Using .env File
-
-Both RPC and Socket integration tests support loading configuration from a `.env` file located in the `test/` directory. This is the recommended approach for managing test configuration.
-
-1. **Create or modify `test/.env`:**
-   ```bash
-   # API key for integration tests (used by both RPC and Socket SDKs)
-   API_KEY=your-api-key-here
-   
-   # Server URL for both RPC and WebSocket endpoints
+1. **Environment Configuration**: Create a `.env` file in the `test/` directory with your API credentials:
+   ```env
+   API_KEY=your-api-key
    SERVER_URL=http://localhost:5000
-   
-   # Tenant ID for the requests
-   TENANT_ID=default
-   
-   # Optional: JWT token for testing JWT authentication (alternative to API_KEY)
-   JWT_TOKEN=your-jwt-token-here
+   TENANT_ID=your-tenant-id
+   PARTICIPANT_ID=your-participant-id
+   WORKFLOW_TYPE=your-workflow-name
    ```
 
-2. **The `.env` file is automatically loaded** by the integration tests, so no additional configuration is needed.
+2. **Dependencies**: Ensure all dependencies are installed:
+   ```bash
+   npm install
+   ```
 
-### Environment Variables
+## Available Tests
 
-For integration tests, you can configure settings via environment variables:
+### Individual SDK Integration Tests
+
+#### RestSDK Integration Test
+Tests HTTP-based communication with UserApi endpoints.
 
 ```bash
-# Using .env file (recommended)
-# Copy test/.env.example to test/.env and edit:
-API_KEY=your-api-key-here
-SERVER_URL=http://localhost:5000
-TENANT_ID=default
+# Run all RestSDK tests
+npx vitest test/RestSDK.integration.test.ts
 
-# Or set environment variables directly
-export API_KEY="your-api-key-here"
-export SERVER_URL="http://localhost:5000"
-export TENANT_ID="your-tenant-id"
+# Run specific test
+npx vitest -t "should send message to workflow using send endpoint"
+npx vitest -t "should send message and wait for response using converse endpoint"
 ```
 
-## SocketSDK Integration Test Features
+**Key Features Tested:**
+- Send messages without waiting for response (`send()`)
+- Send messages and wait for synchronous response (`converse()`)
+- Get conversation history (`getHistory()`)
+- Authentication methods (API key, JWT)
+- Error handling and timeout scenarios
 
-The SocketSDK integration tests cover:
+#### SocketSDK Integration Test
+Tests real-time WebSocket communication using SignalR.
 
-1. **Connection Management**
-   - WebSocket connection establishment
-   - Connection state monitoring
-   - Automatic reconnection handling
-   - Authentication with API keys and JWT tokens
+```bash
+# Run all SocketSDK tests
+npx vitest test/SocketSDK.integration.test.ts
 
-2. **Bot Communication**
-   - Sending bot requests with various parameters
-   - Receiving bot responses asynchronously
-   - Error handling for bot communication
+# Run specific test
+npx vitest -t "should connect to chat hub, send message, and receive agent responses"
+```
 
-3. **Subscription Management**
-   - Subscribing to individual bot workflows
-   - Batch subscribing to multiple workflows
-   - Unsubscribing from workflows
+**Key Features Tested:**
+- WebSocket connection establishment
+- Real-time message sending (`sendInboundMessage()`)
+- Agent subscription (`subscribeToAgent()`)
+- Event handling (Chat, Data, Handoff responses)
+- Connection state management
+- Automatic reconnection
 
-4. **History and Metrics**
-   - Retrieving bot conversation history
-   - Getting bot service metrics
-   - Monitoring connection performance
+#### SseSDK Integration Test
+Tests Server-Sent Events for real-time communication.
 
-5. **Error Scenarios**
-   - Authentication failures
-   - Server unavailability
-   - Network disconnections
-   - Invalid parameters
+```bash
+# Run all SseSDK tests
+npx vitest test/SseSDK.integration.test.ts
+
+# Run specific test
+npx vitest -t "should connect to SSE stream with API key authentication"
+```
+
+**Key Features Tested:**
+- SSE connection establishment
+- Event streaming (Chat, Data, Handoff events)
+- Heartbeat monitoring
+- Authentication methods
+- Connection state management
+- Event handler consistency
+
+### Cross-SDK Integration Test
+
+**NEW:** Tests the happy path of sending messages via one SDK and receiving responses via all other SDKs.
+
+```bash
+# Run all cross-SDK tests
+npx vitest test/CrossSDK.integration.test.ts
+
+# Run specific cross-SDK tests
+npx vitest -t "should send via RestSDK and receive responses via SocketSDK and SseSDK"
+npx vitest -t "should send via SocketSDK and receive responses via all SDKs"
+npx vitest -t "should demonstrate message consistency across SDKs"
+npx vitest -t "should verify all SDKs use consistent authentication"
+```
+
+**Key Features Tested:**
+- **Cross-SDK Communication**: Send via one SDK, receive via all others
+- **Message Consistency**: Verify same message triggers similar responses across SDKs
+- **Authentication Consistency**: Ensure all SDKs use consistent auth methods
+- **Real-time Event Handling**: Test that both SocketSDK and SseSDK receive the same events
+- **Happy Path Scenarios**: Focus on successful communication patterns
+
+**Test Scenarios:**
+1. **RestSDK → SocketSDK/SseSDK**: Send message via RestSDK.send(), listen for responses via real-time SDKs
+2. **SocketSDK → All SDKs**: Send via SocketSDK.sendInboundMessage(), verify responses across all listening SDKs
+3. **Consistency Verification**: Send similar messages via different SDKs, compare response patterns
+4. **Authentication Alignment**: Verify all SDKs use consistent authentication and tenant configuration
+
+### Authentication Consistency Test
+
+Tests that all SDKs handle authentication methods consistently.
+
+```bash
+npx vitest test/AuthMethodsConsistency.test.ts
+```
+
+**Key Features Tested:**
+- API key authentication across all SDKs
+- JWT token authentication across all SDKs
+- JWT callback authentication across all SDKs
+- Authentication method switching
+- Error handling for invalid credentials
+
+## Test Categories
+
+### Integration Tests
+- **Purpose**: Test real communication with the server
+- **Requirements**: Running server instance and valid credentials
+- **Behavior**: May skip tests if server is unavailable
+
+### Unit Tests
+- **Purpose**: Test SDK logic and error handling
+- **Requirements**: No server connection needed
+- **Behavior**: Use mocks and stubs
 
 ## Running Tests
 
-### Standard Commands
-
+### Run All Tests
 ```bash
-# Run all tests
 npm test
-
-# Run only RpcSDK tests
-npx vitest run --grep RpcSDK
-
-# Run only SocketSDK tests
-npx vitest run --grep SocketSDK
-
-# Run with coverage
-npm run test:coverage
-
-# Run in watch mode
+# or
 npx vitest
 ```
 
-### Running Specific Tests
-
+### Run Specific Test Files
 ```bash
-# Run all tests in a specific file
-npx vitest test/RpcSDK.test.ts
-
-# Run integration tests only
-npx vitest test/ChatSocketSDK.integration.test.ts
-
-# Run tests matching a pattern in the test name
-npx vitest --reporter=verbose --run -t "should work with real-world workflow"
-
-# Run tests matching a pattern in file names
-npx vitest run --reporter=verbose RpcSDK
-
-# Run tests in a specific describe block
-npx vitest --reporter=verbose --run -t "Constructor"
-
-# Run tests in watch mode for specific file
-npx vitest test/RpcSDK.test.ts --reporter=verbose
-
-# Run tests with detailed output
-npx vitest run --reporter=verbose
-
-# Run tests and show which tests are being skipped
-npx vitest run --reporter=verbose --run
+npx vitest test/RestSDK.integration.test.ts
+npx vitest test/SocketSDK.integration.test.ts
+npx vitest test/SseSDK.integration.test.ts
+npx vitest test/CrossSDK.integration.test.ts
+npx vitest test/AuthMethodsConsistency.test.ts
 ```
 
-### Test Structure
-
-Tests are written using Vitest, which has a Jest-compatible API:
-
-```typescript
-import { describe, it, expect, vi } from 'vitest';
-import RpcSDK from '../RpcSDK';
-
-describe('RpcSDK', () => {
-  it('should do something', () => {
-    // Test implementation
-    expect(true).toBe(true);
-  });
-});
-```
-
-### Mocking
-
-Use `vi.fn()` to create mock functions:
-
-```typescript
-const mockLogger = vi.fn();
-const rpcSDK = new RpcSDK({ 
-  tenantId: 'test-tenant',
-  apiKey: 'test-api-key',
-  serverUrl: 'http://localhost:5000',
-  logger: mockLogger 
-});
-```
-
-### Debug Mode
-
-To run tests with more detailed output:
-
+### Run Tests in Watch Mode
 ```bash
-# Run with verbose reporter
-npx vitest run --reporter=verbose
-
-# Run with debug output
-DEBUG=* npx vitest run
-
-# Run specific test with detailed output
-npx vitest test/RpcSDK.integration.test.ts --reporter=verbose
+npx vitest --watch
 ```
 
-### Common Test Patterns
-
+### Run Tests with Detailed Output
 ```bash
-# Run only unit tests (exclude integration tests)
-npx vitest test/RpcSDK.test.ts
-
-# Run only integration tests
-npx vitest test/RpcSDK.integration.test.ts
-
-# Run tests and generate coverage report
-npx vitest run --coverage
-
-# Run tests in parallel (default) or serial
-npx vitest run --no-parallel
+npx vitest --reporter=verbose
 ```
 
-## File Structure
+## Test Environment Notes
 
-```
-test/
-├── .env                        # Environment configuration (create this file)
-├── README.md                   # This file
-├── RpcSDK.test.ts             # Unit tests
-└── RpcSDK.integration.test.ts # Integration tests
-```
+### Server Availability
+- Integration tests require a running server at the configured `SERVER_URL`
+- Tests will gracefully skip if the server is not available
+- Authentication errors (401/403) are logged but don't fail the test
 
-## Example .env File
+### Timing Considerations
+- Real-time tests include wait periods for message processing
+- Cross-SDK tests wait longer to ensure all SDKs receive responses
+- Adjust timeout values in test files if needed for slower environments
 
-```bash
-# Copy this content to test/.env
-API_KEY=sk-Xnai-P82pSrmqtOnb_rkDiwl8uhGDuEsvwWVLdeyG6AlsxPBcbQT-5DEzToIWrbzoSGMa2hKlXMmRG8-CS1qHIZzWKA
-SERVER_URL=http://localhost:5000
-TENANT_ID=default
-```
+### Message Flow Testing
+The cross-SDK test specifically validates this flow:
+1. **Setup**: All three SDKs are initialized and connected
+2. **Send**: Message sent via one SDK (RestSDK.send() or SocketSDK.sendInboundMessage())
+3. **Listen**: All real-time SDKs (SocketSDK, SseSDK) listen for responses
+4. **Verify**: Confirm responses are received across multiple SDKs
+5. **Consistency**: Verify similar messages produce similar response patterns
 
-## Integration Test Notes
+This ensures that your application can mix and match SDK usage patterns while maintaining consistent behavior.
 
-- Integration tests make real HTTP requests to the configured server
-- Tests will gracefully handle server unavailability by skipping tests with warnings
-- Timeouts are set to 10-15 seconds to accommodate real network calls
-- Tests verify both successful responses and error handling scenarios 
+## Troubleshooting
+
+### Common Issues
+
+1. **Authentication Errors**: Verify your API key and credentials in `.env`
+2. **Connection Timeouts**: Check that the server is running and accessible
+3. **No Agent Responses**: The bot may be inactive; this is normal for integration testing
+4. **Cross-SDK Test Failures**: Ensure both SocketSDK and SseSDK can connect simultaneously
+
+### Debug Tips
+
+- Enable verbose logging by setting logger functions in the SDK options
+- Check server logs for message processing status
+- Verify network connectivity and firewall settings
+- Use shorter timeout values during development
+
+### Environment Variables
+Make sure your `.env` file contains all required variables:
+- `API_KEY`: Your Flowmaxer.ai API key
+- `SERVER_URL`: The base URL of your Flowmaxer.ai server
+- `TENANT_ID`: Your tenant identifier
+- `PARTICIPANT_ID`: A participant ID for testing
+- `WORKFLOW_TYPE`: The workflow/agent type to test with 
