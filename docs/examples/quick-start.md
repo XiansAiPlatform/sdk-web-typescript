@@ -28,6 +28,7 @@ XIANSAI_SERVER_URL=https://api.yourdomain.com
 ## REST SDK Examples
 
 ### Example 1: Simple Q&A Bot
+
 ```typescript
 import { RestSDK } from 'xiansai-sdk';
 
@@ -63,6 +64,7 @@ askQuestion('How can I reset my password?');
 ```
 
 ### Example 2: Document Processing
+
 ```typescript
 async function processDocument(documentUrl: string) {
   const result = await restSDK.converse({
@@ -92,6 +94,7 @@ processDocument('https://storage.example.com/contract.pdf');
 ```
 
 ### Example 3: Batch Data Processing
+
 ```typescript
 async function processBatch(items: any[]) {
   const requests = items.map((item, index) => 
@@ -126,6 +129,7 @@ processBatch([
 ## Socket SDK Examples
 
 ### Example 1: Real-time Chat Application
+
 ```typescript
 import { SocketSDK, MessageType } from 'xiansai-sdk';
 
@@ -191,6 +195,7 @@ await chat.sendMessage('Hello, I need help with my order');
 ```
 
 ### Example 2: Real-time Data Dashboard
+
 ```typescript
 const dashboardSDK = new SocketSDK({
   tenantId: process.env.XIANSAI_TENANT_ID!,
@@ -248,6 +253,7 @@ await dashboardSDK.subscribeToAgent('analytics-engine', 'dashboard-001');
 ```
 
 ### Example 3: Interactive Workflow
+
 ```typescript
 const workflowSDK = new SocketSDK({
   tenantId: process.env.XIANSAI_TENANT_ID!,
@@ -306,6 +312,7 @@ startWorkflow('user-onboarding', {
 ## SSE SDK Examples
 
 ### Example 1: Live Notifications
+
 ```typescript
 import { SseSDK } from 'xiansai-sdk';
 
@@ -367,6 +374,7 @@ await sseSDK.connect({
 ```
 
 ### Example 2: Status Monitor
+
 ```typescript
 const statusSDK = new SseSDK({
   tenantId: process.env.XIANSAI_TENANT_ID!,
@@ -429,6 +437,7 @@ await statusSDK.connect({
 ```
 
 ### Example 3: Live Event Feed
+
 ```typescript
 const eventSDK = new SseSDK({
   tenantId: process.env.XIANSAI_TENANT_ID!,
@@ -495,19 +504,22 @@ await eventSDK.connect({
 
 ## Choosing the Right SDK
 
-### Use REST SDK when:
+### Use REST SDK when
+
 - You need simple request/response patterns
 - Building server-to-server integrations
 - Processing data in batches
 - Real-time updates aren't required
 
-### Use Socket SDK when:
+### Use Socket SDK when
+
 - Building interactive chat applications
 - Need bidirectional real-time communication
 - Implementing collaborative features
 - Real-time gaming or trading applications
 
-### Use SSE SDK when:
+### Use SSE SDK when
+
 - You only need server-to-client updates
 - Building live dashboards or monitoring systems
 - Implementing notification systems
@@ -516,6 +528,7 @@ await eventSDK.connect({
 ## Error Handling Best Practices
 
 ### REST SDK Error Handling
+
 ```typescript
 try {
   const result = await restSDK.converse({ /* request */ });
@@ -543,6 +556,7 @@ try {
 ```
 
 ### Socket SDK Error Handling
+
 ```typescript
 const socketSDK = new SocketSDK({
   eventHandlers: {
@@ -566,6 +580,7 @@ const socketSDK = new SocketSDK({
 ```
 
 ### SSE SDK Error Handling
+
 ```typescript
 const sseSDK = new SseSDK({
   eventHandlers: {

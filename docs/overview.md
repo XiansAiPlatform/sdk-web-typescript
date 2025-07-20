@@ -37,6 +37,7 @@ graph TD
 ## SDK Components
 
 ### 1. REST SDK
+
 **Best for**: Server-to-server communication, batch processing, synchronous workflows
 
 - **Send**: Fire-and-forget message delivery
@@ -45,6 +46,7 @@ graph TD
 - **Authentication**: API key or JWT via Authorization header
 
 ### 2. Socket SDK (SignalR)
+
 **Best for**: Interactive applications, real-time chat, bidirectional communication
 
 - **Real-time messaging**: Instant message delivery
@@ -54,6 +56,7 @@ graph TD
 - **Authentication**: API key via query params or JWT via headers
 
 ### 3. SSE SDK (Server-Sent Events)
+
 **Best for**: Live notifications, status monitoring, one-way real-time updates
 
 - **Event streaming**: Continuous server-to-client updates
@@ -64,16 +67,21 @@ graph TD
 ## Key Concepts
 
 ### Workflows
+
 Workflows represent AI agents or automated processes. They are identified by:
+
 - **Workflow ID**: Unique identifier for the workflow instance
 - **Workflow Type**: Template or class of workflow behavior
 
 ### Participants
+
 Participants represent entities interacting with workflows:
+
 - **Participant ID**: Unique identifier for the participant
 - **Scope**: Optional grouping or context for messages
 
 ### Message Flow
+
 1. **Incoming Messages**: From participants to workflows
 2. **Outgoing Messages**: From workflows to participants
 3. **Message Types**: Chat (text), Data (structured), Handoff (control transfer)
@@ -81,6 +89,7 @@ Participants represent entities interacting with workflows:
 ## Authentication Methods
 
 ### API Key Authentication
+
 - **Use case**: Server-to-server communication
 - **Security**: Pre-shared secret
 - **Implementation**: Query parameter or custom header
@@ -88,6 +97,7 @@ Participants represent entities interacting with workflows:
 - **Cons**: Shared secret management
 
 ### JWT Token Authentication
+
 - **Use case**: Web applications, user-specific access
 - **Security**: Signed tokens with expiration
 - **Implementation**: Authorization Bearer header
@@ -113,6 +123,7 @@ Participants represent entities interacting with workflows:
 ### Common Patterns
 
 #### 1. Simple Automation
+
 ```typescript
 // Use REST SDK for straightforward request-response
 const restSDK = new RestSDK({ /* config */ });
@@ -125,6 +136,7 @@ const result = await restSDK.converse({
 ```
 
 #### 2. Interactive Chat
+
 ```typescript
 // Use Socket SDK for real-time conversations
 const socketSDK = new SocketSDK({
@@ -139,6 +151,7 @@ await socketSDK.subscribeToAgent('customer-support', 'user-123');
 ```
 
 #### 3. Status Monitoring
+
 ```typescript
 // Use SSE SDK for live updates
 const sseSDK = new SseSDK({
