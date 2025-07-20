@@ -146,13 +146,19 @@ export class SocketSDK {
     // Build the complete URL with query parameters
     const hubUrl = await this.buildConnectionUrl();
     
+    const connectionOptions: signalR.IHttpConnectionOptions = {
+      transport: signalR.HttpTransportType.WebSockets,
+    };
+
+    // Only use accessTokenFactory for JWT authentication
+    if (this.options.getJwtToken || this.options.jwtToken) {
+      connectionOptions.accessTokenFactory = async () => {
+        return await this.getJwtToken();
+      };
+    }
+
     const connectionBuilder = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        accessTokenFactory: async () => {
-          return await this.getAuthToken();
-        },
-        transport: signalR.HttpTransportType.WebSockets,
-      })
+      .withUrl(hubUrl, connectionOptions)
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: () => this.options.reconnectDelay!
       })
@@ -192,20 +198,12 @@ export class SocketSDK {
     if (this.options.apiKey) {
       // For API key authentication: use apikey parameter (consistent with other SDKs)
       url.searchParams.set('apikey', this.options.apiKey);
-    } else if (this.options.getJwtToken) {
-      try {
-        const token = await this.options.getJwtToken();
-        // For JWT authentication: use access_token parameter (consistent with server expectations)
-        url.searchParams.set('access_token', token);
-      } catch (error) {
-        if (this.options.logger) {
-          this.options.logger('error', 'Failed to get JWT token for connection URL', error);
-        }
-        throw new Error(`Failed to get JWT token: ${error}`);
+    } else if (this.options.getJwtToken || this.options.jwtToken) {
+      // JWT tokens are handled via accessTokenFactory in SignalR connection
+      // Do not add JWT tokens to query parameters for security reasons
+      if (this.options.logger) {
+        this.options.logger('debug', 'JWT authentication will be handled via accessTokenFactory');
       }
-    } else if (this.options.jwtToken) {
-      // For JWT authentication: use access_token parameter (consistent with server expectations)
-      url.searchParams.set('access_token', this.options.jwtToken);
     }
     
     const finalUrl = url.toString();
@@ -222,6 +220,27 @@ export class SocketSDK {
     }
     
     return finalUrl;
+  }
+
+  /**
+   * Get JWT token for SignalR accessTokenFactory
+   * @returns JWT token
+   */
+  private async getJwtToken(): Promise<string> {
+    if (this.options.getJwtToken) {
+      try {
+        return await this.options.getJwtToken();
+      } catch (error) {
+        if (this.options.logger) {
+          this.options.logger('error', 'Failed to get JWT token', error);
+        }
+        throw new Error(`Failed to get JWT token: ${error}`);
+      }
+    } else if (this.options.jwtToken) {
+      return this.options.jwtToken;
+    } else {
+      throw new Error('No JWT token available');
+    }
   }
 
   /**

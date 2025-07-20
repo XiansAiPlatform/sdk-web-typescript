@@ -62,22 +62,31 @@ const config = {
 #### REST SDK
 
 ```typescript
-// API key is sent as 'apikey' query parameter
+// API key: sent as 'apikey' query parameter
 // GET /api/user/rest/history?tenantId=tenant&apikey=sk-key&workflow=wf&participantId=user
+
+// JWT token: sent via Authorization header
+// Authorization: Bearer {token}
 ```
 
 #### Socket SDK
 
 ```typescript
-// API key is sent as 'apikey' query parameter in WebSocket URL
+// API key: sent as 'apikey' query parameter in WebSocket URL
 // wss://api.yourdomain.com/ws/chat?tenantId=tenant&apikey=sk-key
+
+// JWT token: sent via Authorization header (secure)
+// Connection established with Authorization: Bearer {token}
 ```
 
 #### SSE SDK
 
 ```typescript
-// API key is sent as 'apikey' query parameter in EventSource URL
+// API key: sent as 'apikey' query parameter in EventSource URL
 // https://api.yourdomain.com/api/user/sse/events?tenantId=tenant&apikey=sk-key&workflow=wf
+
+// JWT token: sent via Authorization header (or fallback to access_token parameter)
+// Authorization: Bearer {token}
 ```
 
 ## JWT Token Authentication
@@ -92,6 +101,7 @@ JWT tokens provide user-specific authentication with time-limited access, ideal 
 - **Expiration**: Implement token refresh before expiration
 - **Validation**: Server validates token signature and claims
 - **Scope**: Tokens should include tenant and user context
+- **Transmission**: JWT tokens are sent via Authorization headers (never in URLs) for security
 
 ### Implementation Patterns
 
