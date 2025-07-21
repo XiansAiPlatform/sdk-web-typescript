@@ -140,6 +140,7 @@ npm install @99xio/xians-sdk-typescript
 ## Versioning Strategy
 
 ### Development Workflow
+
 1. **Feature Development**: Work on features in branches
 2. **Version Bump**: Update version in `package.json`
 3. **Build & Test**: Run `npm run build` and test locally
@@ -147,6 +148,7 @@ npm install @99xio/xians-sdk-typescript
 5. **Tag**: Create git tags for releases
 
 ### Version Examples
+
 ```bash
 # Bug fix release
 npm version patch
@@ -165,14 +167,14 @@ npm publish --access public
 
 ### Common Issues
 
-**Package name already exists**
+Package name already exists
 
 ```bash
 # Error: Package name already taken
 # Solution: Change the name in package.json
 ```
 
-**Authentication issues**
+Authentication issues
 
 ```bash
 # Re-login to npm
@@ -180,7 +182,7 @@ npm logout
 npm login
 ```
 
-**Build failures**
+Build failures
 
 ```bash
 # Clean and rebuild
@@ -189,7 +191,7 @@ npm install
 npm run build
 ```
 
-**Permission denied**
+Permission denied
 
 ```bash
 # Check if you have publish rights
