@@ -154,11 +154,20 @@ describe('Authentication Methods Consistency', () => {
       expect(() => new SseSDK({ ...baseOptions })).toThrow('Either apiKey, jwtToken, or getJwtToken callback is required');
       expect(() => new SocketSDK({ ...baseOptions })).toThrow('Either apiKey, jwtToken, or getJwtToken callback is required');
       
-      // Conflicting authentication methods
-      const conflictingOptions = { ...baseOptions, apiKey: 'test', jwtToken: 'test' };
-      expect(() => new RestSDK(conflictingOptions)).toThrow('Cannot provide apiKey with jwtToken or getJwtToken');
-      expect(() => new SseSDK(conflictingOptions)).toThrow('Cannot provide apiKey with jwtToken or getJwtToken');
-      expect(() => new SocketSDK(conflictingOptions)).toThrow('Cannot provide apiKey with jwtToken or getJwtToken');
+      // Multiple authentication methods should be allowed
+      const multipleAuthOptions = { ...baseOptions, apiKey: 'test', jwtToken: 'test' };
+      expect(() => new RestSDK(multipleAuthOptions)).not.toThrow();
+      expect(() => new SseSDK(multipleAuthOptions)).not.toThrow();
+      expect(() => new SocketSDK(multipleAuthOptions)).not.toThrow();
+      
+      // Clean up the instances created for testing
+      const restSDK = new RestSDK(multipleAuthOptions);
+      const sseSDK = new SseSDK(multipleAuthOptions);
+      const socketSDK = new SocketSDK(multipleAuthOptions);
+      
+      restSDK.dispose();
+      sseSDK.dispose();
+      socketSDK.dispose();
     });
   });
 
