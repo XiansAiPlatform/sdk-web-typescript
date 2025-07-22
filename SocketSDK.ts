@@ -100,6 +100,7 @@ export interface SocketSDKOptions extends BaseSDKOptions {
  * Supports consistent authentication methods across all SDKs:
  * - API key authentication: Uses 'apikey' query parameter (recommended for consistent auth)
  * - JWT authentication: Uses 'access_token' query parameter + Authorization header via SignalR accessTokenFactory
+ * - Combined authentication: Both API key and JWT can be provided simultaneously (JWT takes precedence)
  * 
  * The SDK automatically handles reconnection and provides event-driven communication.
  */
@@ -118,9 +119,6 @@ export class SocketSDK {
     }
     if (!options.apiKey && !options.getJwtToken && !options.jwtToken) {
       throw new Error('Either apiKey, jwtToken, or getJwtToken callback is required');
-    }
-    if (options.apiKey && (options.jwtToken || options.getJwtToken)) {
-      throw new Error('Cannot provide apiKey with jwtToken or getJwtToken. Please use only one authentication method.');
     }
     if (!options.serverUrl) {
       throw new Error('serverUrl is required');
@@ -198,7 +196,9 @@ export class SocketSDK {
     if (this.options.apiKey) {
       // For API key authentication: use apikey parameter (consistent with other SDKs)
       url.searchParams.set('apikey', this.options.apiKey);
-    } else if (this.options.getJwtToken || this.options.jwtToken) {
+    }
+    
+    if (this.options.getJwtToken || this.options.jwtToken) {
       // JWT tokens are handled via accessTokenFactory in SignalR connection
       // Do not add JWT tokens to query parameters for security reasons
       if (this.options.logger) {
@@ -213,9 +213,10 @@ export class SocketSDK {
       this.options.logger('debug', 'Built connection URL', { 
         url: finalUrl.split('?')[0], // Log URL without sensitive tokens
         tenantId: this.options.tenantId, 
-        authMethod: this.getAuthType(),
+        primaryAuthMethod: this.getAuthType(),
         hasApiKey: !!this.options.apiKey,
-        hasJwtToken: !!(this.options.jwtToken || this.options.getJwtToken)
+        hasJwtToken: !!(this.options.jwtToken || this.options.getJwtToken),
+        usingBothMethods: !!this.options.apiKey && !!(this.options.jwtToken || this.options.getJwtToken)
       });
     }
     
@@ -245,11 +246,11 @@ export class SocketSDK {
 
   /**
    * Gets the authentication token based on the configured method
+   * When both API key and JWT methods are provided, JWT takes precedence
    */
   private async getAuthToken(): Promise<string> {
-    if (this.options.apiKey) {
-      return this.options.apiKey;
-    } else if (this.options.getJwtToken) {
+    // Prioritize JWT methods when available
+    if (this.options.getJwtToken) {
       try {
         return await this.options.getJwtToken();
       } catch (error) {
@@ -260,6 +261,8 @@ export class SocketSDK {
       }
     } else if (this.options.jwtToken) {
       return this.options.jwtToken;
+    } else if (this.options.apiKey) {
+      return this.options.apiKey;
     } else {
       throw new Error('No authentication method available');
     }
@@ -338,10 +341,28 @@ export class SocketSDK {
         this.options.logger('info', '🔔 [NEW-Pascal] Received agent chat message via ReceiveChat', { 
           messageId: message.id, 
           direction: message.direction,
-          text: message.text ? message.text.substring(0, 100) + '...' : 'No text'
+          text: message.text ? message.text.substring(0, 100) + '...' : 'No text',
+          messageType: message.messageType
         });
       }
-      this.eventHandlers.onReceiveChat?.(message);
+      
+      // Check if this is actually a handoff message sent through chat channel
+      const isHandoffMessage = message.messageType === 'Handoff';
+      
+      if (isHandoffMessage) {
+        if (this.options.logger) {
+          this.options.logger('info', '🔄 [ROUTING] Detected handoff message in chat channel, routing to onReceiveHandoff', {
+            messageId: message.id,
+            messageType: message.messageType,
+            textPrefix: message.text ? message.text.substring(0, 20) : 'No text'
+          });
+        }
+        // Route to handoff handler instead
+        this.eventHandlers.onReceiveHandoff?.(message);
+      } else {
+        // Handle as regular chat message
+        this.eventHandlers.onReceiveChat?.(message);
+      }
     });
 
 
@@ -350,10 +371,28 @@ export class SocketSDK {
         this.options.logger('info', '🔔 [NEW-Pascal] Received agent data message via ReceiveData', { 
           messageId: message.id, 
           direction: message.direction,
-          hasData: !!message.data
+          hasData: !!message.data,
+          messageType: message.messageType
         });
       }
-      this.eventHandlers.onReceiveData?.(message);
+      
+      // Check if this is actually a handoff message sent through data channel
+      const isHandoffMessage = message.messageType === 'Handoff';
+      
+      if (isHandoffMessage) {
+        if (this.options.logger) {
+          this.options.logger('info', '🔄 [ROUTING] Detected handoff message in data channel, routing to onReceiveHandoff', {
+            messageId: message.id,
+            messageType: message.messageType,
+            textPrefix: message.text ? message.text.substring(0, 20) : 'No text'
+          });
+        }
+        // Route to handoff handler instead
+        this.eventHandlers.onReceiveHandoff?.(message);
+      } else {
+        // Handle as regular data message
+        this.eventHandlers.onReceiveData?.(message);
+      }
     });
 
     this.connection.on('ReceiveHandoff', (message: Message) => {
@@ -379,6 +418,24 @@ export class SocketSDK {
         this.options.logger('error', 'Connection error', error);
       }
       this.eventHandlers.onConnectionError?.(error);
+    });
+
+    // Legacy method support - register old SignalR methods that server might still call
+    // Route them to the appropriate modern handlers
+    this.connection.on('ReceiveMessage', (message: Message) => {
+      // ignore
+    });
+
+    this.connection.on('receivemessage', (message: Message) => {
+      // ignore
+    });
+
+    this.connection.on('ReceiveMetadata', (message: Message) => {
+      // ignore
+    });
+
+    this.connection.on('receivemetadata', (message: Message) => {
+      // ignore
     });
   }
 
@@ -508,11 +565,34 @@ export class SocketSDK {
         throw new Error('participantId is required');
       }
 
-      if (this.options.logger) {
-        this.options.logger('debug', 'Sending inbound message', { request, messageType });
+      // Add JWT token to authorization field if available
+      const messageRequest = { ...request };
+      if (this.options.jwtToken || this.options.getJwtToken) {
+        try {
+          const jwtToken = await this.getJwtToken();
+          messageRequest.authorization = jwtToken;
+          
+          if (this.options.logger) {
+            this.options.logger('debug', 'Added JWT token to message authorization field');
+          }
+        } catch (error) {
+          if (this.options.logger) {
+            this.options.logger('warn', 'Failed to get JWT token for message authorization field', error);
+          }
+          // Continue without JWT in message (connection-level auth still applies)
+        }
       }
 
-      await this.connection.invoke('SendInboundMessage', request, messageType);
+      if (this.options.logger) {
+        this.options.logger('debug', 'Sending inbound message', { 
+          messageType,
+          hasAuthorization: !!messageRequest.authorization,
+          participantId: request.participantId,
+          requestId: request.requestId
+        });
+      }
+
+      await this.connection.invoke('SendInboundMessage', messageRequest, messageType);
     } catch (error) {
       if (this.options.logger) {
         this.options.logger('error', 'Failed to send inbound message', error);
@@ -641,11 +721,12 @@ export class SocketSDK {
 
   /**
    * Gets the authentication type being used
+   * When both API key and JWT methods are provided, JWT takes precedence
    */
   public getAuthType(): AuthType {
-    if (this.options.apiKey) return 'apiKey';
     if (this.options.getJwtToken) return 'jwtCallback';
-    return 'jwtToken';
+    if (this.options.jwtToken) return 'jwtToken';
+    return 'apiKey';
   }
 
   /**
@@ -794,6 +875,29 @@ export class SocketSDK {
  *     },
  *     onReceiveHandoff: (message) => {
  *       console.log('Handoff received:', message);
+ *     }
+ *   }
+ * });
+ * 
+ * // Option 3: Create Chat Socket SDK with combined authentication (API key + JWT)
+ * // JWT takes precedence for primary auth, API key can be used as fallback or for specific scenarios
+ * const chatSocketSDKWithBoth = new ChatSocketSDK({
+ *   tenantId: 'my-tenant-123',
+ *   apiKey: 'sk-fallback-key',
+ *   serverUrl: 'http://localhost:5000',
+ *   getJwtToken: async () => {
+ *     // Primary authentication method
+ *     const response = await fetch('/api/auth/token');
+ *     const { token } = await response.json();
+ *     return token;
+ *   },
+ *   autoReconnect: true,
+ *   eventHandlers: {
+ *     onThreadHistory: (history) => {
+ *       console.log('Received history with', history.length, 'messages');
+ *     },
+ *     onReceiveChat: (message) => {
+ *       console.log('Agent response:', message.text);
  *     }
  *   }
  * });

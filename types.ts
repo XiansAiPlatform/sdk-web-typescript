@@ -51,6 +51,7 @@ export interface BaseMessageRequest {
   scope?: string;
   workflow: string;
   type: string;
+  authorization?: string;
 }
 
 /**

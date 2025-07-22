@@ -84,9 +84,6 @@ export class RestSDK {
     if (!options.apiKey && !options.getJwtToken && !options.jwtToken) {
       throw new Error('Either apiKey, jwtToken, or getJwtToken callback is required');
     }
-    if (options.apiKey && (options.jwtToken || options.getJwtToken)) {
-      throw new Error('Cannot provide apiKey with jwtToken or getJwtToken. Please use only one authentication method.');
-    }
     if (!options.serverUrl) {
       throw new Error('serverUrl is required');
     }
@@ -102,11 +99,34 @@ export class RestSDK {
 
   /**
    * Gets the authentication token based on the configured method
+   * When both API key and JWT methods are provided, JWT takes precedence
    */
   private async getAuthToken(): Promise<string> {
-    if (this.options.apiKey) {
+    // Prioritize JWT methods when available
+    if (this.options.getJwtToken) {
+      try {
+        return await this.options.getJwtToken();
+      } catch (error) {
+        if (this.options.logger) {
+          this.options.logger('error', 'Failed to get JWT token', error);
+        }
+        throw new Error(`Failed to get JWT token: ${error}`);
+      }
+    } else if (this.options.jwtToken) {
+      return this.options.jwtToken;
+    } else if (this.options.apiKey) {
       return this.options.apiKey;
-    } else if (this.options.getJwtToken) {
+    } else {
+      throw new Error('No authentication method available');
+    }
+  }
+
+  /**
+   * Get JWT token for Authorization header
+   * @returns JWT token
+   */
+  private async getJwtToken(): Promise<string> {
+    if (this.options.getJwtToken) {
       try {
         return await this.options.getJwtToken();
       } catch (error) {
@@ -118,7 +138,7 @@ export class RestSDK {
     } else if (this.options.jwtToken) {
       return this.options.jwtToken;
     } else {
-      throw new Error('No authentication method available');
+      throw new Error('No JWT token available');
     }
   }
 
@@ -140,6 +160,7 @@ export class RestSDK {
   /**
    * Makes an HTTP request with authentication and error handling
    * Supports multiple authentication methods: apikey query param, Authorization header, or access_token query param fallback
+   * Can use both API key and JWT simultaneously when both are provided
    */
   private async makeRequest<T>(
     endpoint: string, 
@@ -152,7 +173,6 @@ export class RestSDK {
     }
 
     try {
-      const authToken = await this.getAuthToken();
       const url = new URL(`${this.options.serverUrl}${endpoint}`);
       
       // Always add tenantId to query params as required by the server
@@ -161,10 +181,10 @@ export class RestSDK {
         tenantId: this.options.tenantId
       };
 
-      // Add authentication based on method
+      // Add API key authentication if available
       if (this.options.apiKey) {
         // For API key authentication: add apikey to query params
-        finalQueryParams.apikey = authToken;
+        finalQueryParams.apikey = this.options.apiKey;
       }
       
       if (finalQueryParams) {
@@ -178,10 +198,10 @@ export class RestSDK {
         'Content-Type': 'application/json',
       };
 
-      // For JWT authentication: use Authorization header (preferred method)
-      // Note: RestSDK primarily uses Authorization header, but server also supports access_token query parameter
+      // Add JWT authentication if available
       if (this.options.jwtToken || this.options.getJwtToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
+        const jwtToken = await this.getJwtToken();
+        headers['Authorization'] = `Bearer ${jwtToken}`;
         
         if (this.options.logger) {
           this.options.logger('debug', 'Using Authorization header for JWT authentication');
@@ -201,8 +221,10 @@ export class RestSDK {
       if (this.options.logger) {
         this.options.logger('debug', `Making ${method} request to ${url.toString()}`, {
           hasBody: !!body,
-          hasAuth: !!authToken,
-          authMethod: this.getAuthType(),
+          hasApiKey: !!this.options.apiKey,
+          hasJwtToken: !!(this.options.jwtToken || this.options.getJwtToken),
+          usingBothMethods: !!this.options.apiKey && !!(this.options.jwtToken || this.options.getJwtToken),
+          primaryAuthMethod: this.getAuthType(),
           tenantId: this.options.tenantId
         });
       }
@@ -279,21 +301,40 @@ export class RestSDK {
       throw new Error('participantId is required');
     }
 
+    // Add JWT token to authorization field if available
+    const messageRequest = { ...request };
+    if (this.options.jwtToken || this.options.getJwtToken) {
+      try {
+        const jwtToken = await this.getJwtToken();
+        messageRequest.authorization = jwtToken;
+        
+        if (this.options.logger) {
+          this.options.logger('debug', 'Added JWT token to message authorization field');
+        }
+      } catch (error) {
+        if (this.options.logger) {
+          this.options.logger('warn', 'Failed to get JWT token for message authorization field', error);
+        }
+        // Continue without JWT in message (header auth still applies)
+      }
+    }
+
     const queryParams: Record<string, string | undefined> = {
-      workflow: request.workflow,
-      type: request.type,
-      participantId: request.participantId,
-      requestId: request.requestId,
-      text: request.text
+      workflow: messageRequest.workflow,
+      type: messageRequest.type,
+      participantId: messageRequest.participantId,
+      requestId: messageRequest.requestId,
+      text: messageRequest.text
     };
 
     if (this.options.logger) {
       this.options.logger('info', 'Sending message to workflow', {
-        workflow: request.workflow,
-        type: request.type,
-        participantId: request.participantId,
-        hasText: !!request.text,
-        hasData: !!request.data
+        workflow: messageRequest.workflow,
+        type: messageRequest.type,
+        participantId: messageRequest.participantId,
+        hasText: !!messageRequest.text,
+        hasData: !!messageRequest.data,
+        hasAuthorization: !!messageRequest.authorization
       });
     }
 
@@ -301,7 +342,7 @@ export class RestSDK {
       '/api/user/rest/send',
       'POST',
       queryParams,
-      request.data
+      messageRequest
     );
   }
 
@@ -319,25 +360,44 @@ export class RestSDK {
       throw new Error('participantId is required');
     }
 
-    const timeoutSeconds = request.timeoutSeconds;
+    // Add JWT token to authorization field if available
+    const messageRequest = { ...request };
+    if (this.options.jwtToken || this.options.getJwtToken) {
+      try {
+        const jwtToken = await this.getJwtToken();
+        messageRequest.authorization = jwtToken;
+        
+        if (this.options.logger) {
+          this.options.logger('debug', 'Added JWT token to message authorization field');
+        }
+      } catch (error) {
+        if (this.options.logger) {
+          this.options.logger('warn', 'Failed to get JWT token for message authorization field', error);
+        }
+        // Continue without JWT in message (header auth still applies)
+      }
+    }
+
+    const timeoutSeconds = messageRequest.timeoutSeconds;
     
     const queryParams: Record<string, string | number | undefined> = {
-      workflow: request.workflow,
-      type: request.type,
-      participantId: request.participantId,
+      workflow: messageRequest.workflow,
+      type: messageRequest.type,
+      participantId: messageRequest.participantId,
       timeoutSeconds,
-      requestId: request.requestId,
-      text: request.text
+      requestId: messageRequest.requestId,
+      text: messageRequest.text
     };
 
     if (this.options.logger) {
       this.options.logger('info', 'Starting conversation with workflow', {
-        workflow: request.workflow,
-        type: request.type,
-        participantId: request.participantId,
+        workflow: messageRequest.workflow,
+        type: messageRequest.type,
+        participantId: messageRequest.participantId,
         timeoutSeconds,
-        hasText: !!request.text,
-        hasData: !!request.data
+        hasText: !!messageRequest.text,
+        hasData: !!messageRequest.data,
+        hasAuthorization: !!messageRequest.authorization
       });
     }
 
@@ -346,7 +406,7 @@ export class RestSDK {
         '/api/user/rest/converse',
         'POST',
         queryParams,
-        request.data
+        messageRequest
       );
 
       if (this.options.logger) {
@@ -410,11 +470,12 @@ export class RestSDK {
 
   /**
    * Gets the authentication type being used
+   * When both API key and JWT methods are provided, JWT takes precedence
    */
   public getAuthType(): AuthType {
-    if (this.options.apiKey) return 'apiKey';
     if (this.options.getJwtToken) return 'jwtCallback';
-    return 'jwtToken';
+    if (this.options.jwtToken) return 'jwtToken';
+    return 'apiKey';
   }
 
   /**
@@ -485,6 +546,20 @@ export class RestSDK {
  *   tenantId: 'my-tenant-123',
  *   serverUrl: 'http://localhost:5000',
  *   getJwtToken: async () => {
+ *     const response = await fetch('/api/auth/token');
+ *     const { token } = await response.json();
+ *     return token;
+ *   }
+ * });
+ * 
+ * // Option 3: Create Rest SDK with combined authentication (API key + JWT)
+ * // JWT takes precedence for primary auth, API key can be used as fallback or for specific scenarios
+ * const restSDKWithBoth = new RestSDK({
+ *   tenantId: 'my-tenant-123',
+ *   apiKey: 'sk-fallback-key',
+ *   serverUrl: 'http://localhost:5000',
+ *   getJwtToken: async () => {
+ *     // Primary authentication method (sent in Authorization header)
  *     const response = await fetch('/api/auth/token');
  *     const { token } = await response.json();
  *     return token;

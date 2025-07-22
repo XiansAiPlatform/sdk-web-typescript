@@ -161,9 +161,10 @@ export interface SseSDKOptions extends BaseSDKOptions {
 /**
  * SSE SDK class for real-time Server-Sent Events communication
  * 
- * Supports both API key and JWT authentication methods:
+ * Supports multiple authentication methods:
  * - API key authentication: Recommended for SSE due to reliable browser support
  * - JWT authentication: Supported but may have limitations due to EventSource header restrictions in some browsers
+ * - Combined authentication: Both API key and JWT can be provided simultaneously (JWT takes precedence)
  * 
  * For JWT authentication, the SDK attempts to use Authorization headers where supported,
  * and falls back to query parameters when custom headers aren't available.
@@ -186,9 +187,6 @@ export class SseSDK {
     }
     if (!options.apiKey && !options.getJwtToken && !options.jwtToken) {
       throw new Error('Either apiKey, jwtToken, or getJwtToken callback is required');
-    }
-    if (options.apiKey && (options.jwtToken || options.getJwtToken)) {
-      throw new Error('Cannot provide apiKey with jwtToken or getJwtToken. Please use only one authentication method.');
     }
     if (!options.serverUrl) {
       throw new Error('serverUrl is required');
@@ -217,11 +215,34 @@ export class SseSDK {
 
   /**
    * Gets the authentication token based on the configured method
+   * When both API key and JWT methods are provided, JWT takes precedence
    */
   private async getAuthToken(): Promise<string> {
-    if (this.options.apiKey) {
+    // Prioritize JWT methods when available
+    if (this.options.getJwtToken) {
+      try {
+        return await this.options.getJwtToken();
+      } catch (error) {
+        if (this.options.logger) {
+          this.options.logger('error', 'Failed to get JWT token', error);
+        }
+        throw new Error(`Failed to get JWT token: ${error}`);
+      }
+    } else if (this.options.jwtToken) {
+      return this.options.jwtToken;
+    } else if (this.options.apiKey) {
       return this.options.apiKey;
-    } else if (this.options.getJwtToken) {
+    } else {
+      throw new Error('No authentication method available');
+    }
+  }
+
+  /**
+   * Get JWT token for EventSource Authorization header
+   * @returns JWT token
+   */
+  private async getJwtToken(): Promise<string> {
+    if (this.options.getJwtToken) {
       try {
         return await this.options.getJwtToken();
       } catch (error) {
@@ -233,15 +254,15 @@ export class SseSDK {
     } else if (this.options.jwtToken) {
       return this.options.jwtToken;
     } else {
-      throw new Error('No authentication method available');
+      throw new Error('No JWT token available');
     }
   }
 
   /**
    * Builds the SSE endpoint URL with authentication
+   * Can use both API key and JWT simultaneously when both are provided
    */
   private async buildSseUrl(params: SseConnectionParams): Promise<string> {
-    const authToken = await this.getAuthToken();
     const url = new URL(`${this.options.serverUrl}/api/user/sse/events`);
     
     // Always add required parameters
@@ -257,17 +278,16 @@ export class SseSDK {
       url.searchParams.set('heartbeatSeconds', params.heartbeatSeconds.toString());
     }
 
-    // Add authentication based on method
+    // Add API key authentication if available
     if (this.options.apiKey) {
       // For API key authentication: add apikey to query params
-      url.searchParams.set('apikey', authToken);
-    } else {
-      // For JWT authentication: We'll try to use EventSource with Authorization header
-      // Note: EventSource doesn't support custom headers in all browsers, but some modern environments do
-      // If it fails, the server will return an authentication error
-      // The server expects Authorization: Bearer <token> header
+      url.searchParams.set('apikey', this.options.apiKey);
+    }
+
+    // JWT authentication will be handled in attemptConnection method via EventSource headers
+    if (this.options.getJwtToken || this.options.jwtToken) {
       if (this.options.logger) {
-        this.options.logger('debug', 'Using JWT authentication for SSE - note that EventSource header support varies by browser');
+        this.options.logger('debug', 'JWT authentication will be handled via EventSource headers where supported');
       }
     }
 
@@ -319,20 +339,18 @@ export class SseSDK {
       // Create EventSource with custom headers for JWT authentication
       let eventSource: EventSource;
       
-      if (this.options.apiKey) {
-        // For API key authentication, use standard EventSource (token is in URL query params)
-        eventSource = new EventSourceImpl(url);
-      } else {
+      // Create EventSource based on available authentication methods
+      if (this.options.getJwtToken || this.options.jwtToken) {
         // For JWT authentication, try to use EventSource with custom headers
         // Note: This may not work in all browsers - EventSource spec doesn't support custom headers
         // But some modern environments (Node.js, some browsers) do support it
-        const authToken = await this.getAuthToken();
+        const jwtToken = await this.getJwtToken();
         
         try {
           // Try to create EventSource with headers (modern browsers/Node.js)
           const eventSourceConfig = {
             headers: {
-              'Authorization': `Bearer ${authToken}`
+              'Authorization': `Bearer ${jwtToken}`
             }
           };
           
@@ -340,7 +358,10 @@ export class SseSDK {
           eventSource = new (EventSourceImpl as any)(url, eventSourceConfig);
           
           if (this.options.logger) {
-            this.options.logger('debug', 'Created EventSource with Authorization header');
+            this.options.logger('debug', 'Created EventSource with Authorization header', {
+              hasApiKey: !!this.options.apiKey,
+              usingBothMethods: !!this.options.apiKey
+            });
           }
         } catch (headerError) {
           if (this.options.logger) {
@@ -349,12 +370,22 @@ export class SseSDK {
           
           // Fallback: Add token as query parameter for environments that don't support headers
           const urlWithToken = new URL(url);
-          urlWithToken.searchParams.set('access_token', authToken);
+          urlWithToken.searchParams.set('access_token', jwtToken);
           eventSource = new EventSourceImpl(urlWithToken.toString());
           
           if (this.options.logger) {
-            this.options.logger('debug', 'Created EventSource with access_token query parameter');
+            this.options.logger('debug', 'Created EventSource with access_token query parameter', {
+              hasApiKey: !!this.options.apiKey,
+              usingBothMethods: !!this.options.apiKey
+            });
           }
+        }
+      } else {
+        // For API key only authentication, use standard EventSource (token is in URL query params)
+        eventSource = new EventSourceImpl(url);
+        
+        if (this.options.logger) {
+          this.options.logger('debug', 'Created EventSource with API key authentication in query params');
         }
       }
       
@@ -586,26 +617,74 @@ export class SseSDK {
       // Also emit legacy event for backward compatibility
       this.emitEvent('heartbeat', sseEvent);
     } else if (sseEvent.type === 'Chat') {
-      // Call specific chat handler
-      if (this.sseEventHandlers.onReceiveChat) {
-        try {
-          this.sseEventHandlers.onReceiveChat((sseEvent as SseMessageEvent).data);
-        } catch (error) {
-          if (this.options.logger) {
-            this.options.logger('error', 'Error in onReceiveChat handler', error);
+      // Check if this is actually a handoff message sent through chat channel
+      const message = (sseEvent as SseMessageEvent).data;
+      const isHandoffMessage = message.messageType === 'Handoff';
+      
+      if (isHandoffMessage) {
+        if (this.options.logger) {
+          this.options.logger('info', '🔄 [SSE-ROUTING] Detected handoff message in chat event, routing to onReceiveHandoff', {
+            messageId: message.id,
+            messageType: message.messageType,
+            textPrefix: message.text ? message.text.substring(0, 20) : 'No text'
+          });
+        }
+        // Route to handoff handler instead
+        if (this.sseEventHandlers.onReceiveHandoff) {
+          try {
+            this.sseEventHandlers.onReceiveHandoff(message);
+          } catch (error) {
+            if (this.options.logger) {
+              this.options.logger('error', 'Error in onReceiveHandoff handler', error);
+            }
+          }
+        }
+      } else {
+        // Call specific chat handler
+        if (this.sseEventHandlers.onReceiveChat) {
+          try {
+            this.sseEventHandlers.onReceiveChat(message);
+          } catch (error) {
+            if (this.options.logger) {
+              this.options.logger('error', 'Error in onReceiveChat handler', error);
+            }
           }
         }
       }
       // Also emit legacy event for backward compatibility
       this.emitEvent('message', sseEvent);
     } else if (sseEvent.type === 'Data') {
-      // Call specific data handler
-      if (this.sseEventHandlers.onReceiveData) {
-        try {
-          this.sseEventHandlers.onReceiveData((sseEvent as SseMessageEvent).data);
-        } catch (error) {
-          if (this.options.logger) {
-            this.options.logger('error', 'Error in onReceiveData handler', error);
+      // Check if this is actually a handoff message sent through data channel
+      const message = (sseEvent as SseMessageEvent).data;
+      const isHandoffMessage = message.messageType === 'Handoff';
+      
+      if (isHandoffMessage) {
+        if (this.options.logger) {
+          this.options.logger('info', '🔄 [SSE-ROUTING] Detected handoff message in data event, routing to onReceiveHandoff', {
+            messageId: message.id,
+            messageType: message.messageType,
+            textPrefix: message.text ? message.text.substring(0, 20) : 'No text'
+          });
+        }
+        // Route to handoff handler instead
+        if (this.sseEventHandlers.onReceiveHandoff) {
+          try {
+            this.sseEventHandlers.onReceiveHandoff(message);
+          } catch (error) {
+            if (this.options.logger) {
+              this.options.logger('error', 'Error in onReceiveHandoff handler', error);
+            }
+          }
+        }
+      } else {
+        // Call specific data handler
+        if (this.sseEventHandlers.onReceiveData) {
+          try {
+            this.sseEventHandlers.onReceiveData(message);
+          } catch (error) {
+            if (this.options.logger) {
+              this.options.logger('error', 'Error in onReceiveData handler', error);
+            }
           }
         }
       }
@@ -849,11 +928,12 @@ export class SseSDK {
 
   /**
    * Gets the authentication type being used
+   * When both API key and JWT methods are provided, JWT takes precedence
    */
   public getAuthType(): AuthType {
-    if (this.options.apiKey) return 'apiKey';
     if (this.options.getJwtToken) return 'jwtCallback';
-    return 'jwtToken';
+    if (this.options.jwtToken) return 'jwtToken';
+    return 'apiKey';
   }
 
   /**
@@ -995,6 +1075,31 @@ export class SseSDK {
  *     },
  *     onDisconnected: (reason) => {
  *       console.log('Disconnected from SSE stream:', reason);
+ *     }
+ *   }
+ * });
+ * 
+ * // Option 3: Create SSE SDK with combined authentication (API key + JWT)
+ * // JWT takes precedence for primary auth, API key provides fallback compatibility
+ * const sseSDKWithBoth = new SseSDK({
+ *   tenantId: 'my-tenant-123',
+ *   apiKey: 'sk-fallback-key',
+ *   serverUrl: 'http://localhost:5000',
+ *   getJwtToken: async () => {
+ *     // Primary authentication method (sent in Authorization header where supported)
+ *     const response = await fetch('/api/auth/token');
+ *     const { token } = await response.json();
+ *     return token;
+ *   },
+ *   eventHandlers: {
+ *     onReceiveChat: (message) => {
+ *       console.log('Chat message:', message.text);
+ *     },
+ *     onReceiveData: (message) => {
+ *       console.log('Data message:', message.data);
+ *     },
+ *     onHeartbeat: (data) => {
+ *       console.log('Heartbeat received');
  *     }
  *   }
  * });
