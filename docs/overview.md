@@ -1,5 +1,7 @@
 # XiansAi SDK Overview
 
+This guide explains the SDK architecture, core concepts, and helps you choose the right communication method for your use case.
+
 ## Purpose
 
 The XiansAi SDK provides TypeScript clients for communicating with XiansAi backend agents. It enables applications to integrate AI-powered workflows, conversations, and data processing capabilities through multiple communication patterns.
@@ -169,6 +171,11 @@ await sseSDK.connect({
 
 ## Next Steps
 
-- [Authentication Setup](./authentication.md) - Configure API keys or JWT tokens
-- [Message Types](./message-types.md) - Understand Chat, Data, and Handoff messages
-- [Quick Start Examples](./examples/quick-start.md) - Get started with each SDK 
+Now that you understand the SDK architecture and communication patterns:
+
+1. **Set up authentication**: Read [Authentication Setup](./authentication.md) to configure API keys or JWT tokens
+2. **Understand data structures**: Review [Message Types](./message-types.md) to understand Chat, Data, and Handoff messages  
+3. **Start coding**: Try the [Quick Start Examples](./examples/quick-start.md) to implement your chosen SDK
+4. **Dive deeper**: Explore individual SDK documentation ([REST](./rest-sdk.md), [Socket](./socket-sdk.md), [SSE](./sse-sdk.md)) for detailed API references
+
+💡 **Tip**: Most developers start with the [Quick Start Examples](./examples/quick-start.md) after reading this overview. 

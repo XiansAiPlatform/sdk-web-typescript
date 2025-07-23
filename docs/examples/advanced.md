@@ -1160,7 +1160,7 @@ class SDKErrorHandler {
 
 - [Quick Start Examples](./quick-start.md) - Basic SDK usage
 - [Authentication Examples](./authentication.md) - Authentication setup patterns
-- [API Documentation](../index.md) - Complete SDK reference
+- [API Documentation](../../README.md) - Complete SDK reference
 - [Message Types](../message-types.md) - Understanding different message structures
 
 ## Production Deployment Checklist
