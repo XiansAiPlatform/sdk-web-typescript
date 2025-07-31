@@ -18,7 +18,7 @@ XIANSAI_SERVER_URL=https://api.yourdomain.com
 ### Basic API Key Setup
 
 ```typescript
-import { RestSDK, SocketSDK, SseSDK } from 'xiansai-sdk';
+import { RestSDK, SocketSDK, SseSDK } from '@99xio/xians-sdk-typescript';
 
 const config = {
   tenantId: process.env.XIANSAI_TENANT_ID!,
@@ -177,7 +177,7 @@ const restSDK = new RestSDK(config);
 ### Dynamic JWT Token (Recommended)
 
 ```typescript
-import { SocketSDK } from 'xiansai-sdk';
+import { SocketSDK } from '@99xio/xians-sdk-typescript';
 
 class WebAppAuthentication {
   private socketSDK: SocketSDK;
@@ -503,7 +503,7 @@ class OIDCAuthentication {
 
 ```typescript
 import { useEffect, useState, useCallback } from 'react';
-import { SocketSDK, ConnectionState } from 'xiansai-sdk';
+import { SocketSDK, ConnectionState } from '@99xio/xians-sdk-typescript';
 
 interface UseXiansAiSDKOptions {
   tenantId: string;
@@ -591,7 +591,7 @@ function ChatComponent() {
 
 ```typescript
 import { ref, onMounted, onUnmounted } from 'vue';
-import { SseSDK, ConnectionState } from 'xiansai-sdk';
+import { SseSDK, ConnectionState } from '@99xio/xians-sdk-typescript';
 
 export function useNotifications(tenantId: string, participantId: string) {
   const sseSDK = ref<SseSDK | null>(null);

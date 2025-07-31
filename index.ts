@@ -5,7 +5,6 @@
 
 // Export shared types
 export type {
-  MessageType,
   Message,
   MessageError,
   BaseMessageRequest,
@@ -16,8 +15,8 @@ export type {
   BaseConnectionParams
 } from './types';
 
-// Export unified interfaces
-export { ConnectionState, SDK_DEFAULTS } from './types';
+// Export unified interfaces and enums (as values)
+export { MessageType, ConnectionState, SDK_DEFAULTS } from './types';
 
 // Export SocketSDK types
 export type {
@@ -59,7 +58,7 @@ export { default as AgentSDK } from './AgentSDK';
  * Example usage of both SDKs:
  * 
  * ```typescript
- * import { SocketSDK, RestSDK, MessageType, RestMessageType } from 'xiansai-sdk';
+ * import { SocketSDK, RestSDK, MessageType, RestMessageType } from '@99xio/xians-sdk-typescript';
  * 
  * // For real-time communication
  * const socketSDK = new SocketSDK({

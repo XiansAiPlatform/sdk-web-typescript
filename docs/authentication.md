@@ -32,7 +32,7 @@ API keys are pre-shared secrets suitable for server-to-server communication wher
 #### Basic Setup
 
 ```typescript
-import { RestSDK, SocketSDK, SseSDK } from 'xiansai-sdk';
+import { RestSDK, SocketSDK, SseSDK } from '@99xio/xians-sdk-typescript';
 
 const config = {
   tenantId: 'your-tenant-id',

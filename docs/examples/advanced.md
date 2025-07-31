@@ -9,7 +9,7 @@ This guide demonstrates complex scenarios, production-ready patterns, and best p
 Combine multiple SDKs for optimal user experience - use REST for reliable operations, WebSocket for real-time chat, and SSE for notifications.
 
 ```typescript
-import { RestSDK, SocketSDK, SseSDK, MessageType } from 'xiansai-sdk';
+import { RestSDK, SocketSDK, SseSDK, MessageType } from '@99xio/xians-sdk-typescript';
 
 class HybridCommunicationClient {
   private restSDK: RestSDK;

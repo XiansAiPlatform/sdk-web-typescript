@@ -13,7 +13,7 @@ The REST SDK offers three main operations:
 ## Installation
 
 ```typescript
-import { RestSDK } from 'xiansai-sdk';
+import { RestSDK } from '@99xio/xians-sdk-typescript';
 ```
 
 ## Configuration

@@ -15,7 +15,7 @@ The Socket SDK offers:
 ## Installation
 
 ```typescript
-import { SocketSDK } from 'xiansai-sdk';
+import { SocketSDK } from '@99xio/xians-sdk-typescript';
 ```
 
 ## Configuration

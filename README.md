@@ -83,6 +83,7 @@ const result = await restSDK.converse({
 
 | Document | Content |
 |----------|---------|
+| **[Types Reference](./docs/types.md)** | Complete TypeScript types and interfaces |
 | **[Message Types](./docs/message-types.md)** | Chat, Data, and Handoff message structures |
 | **[Authentication Examples](./docs/examples/authentication.md)** | Detailed auth implementation patterns |
 | **[Advanced Examples](./docs/examples/advanced.md)** | Complex scenarios and best practices |
@@ -110,17 +111,20 @@ const result = await restSDK.converse({
 ## Learning Path
 
 ### For Beginners
+
 1. Read [Overview](./docs/overview.md) to understand the architecture
-2. Set up [Authentication](./docs/authentication.md) 
+2. Set up [Authentication](./docs/authentication.md)
 3. Try [Quick Start Examples](./docs/examples/quick-start.md)
 4. Explore individual SDK documentation as needed
 
 ### For Experienced Developers
+
 1. Review [Overview](./docs/overview.md) for architecture understanding
 2. Jump to relevant SDK documentation ([REST](./docs/rest-sdk.md), [Socket](./docs/socket-sdk.md), [SSE](./docs/sse-sdk.md))
 3. Check [Advanced Examples](./docs/examples/advanced.md) for complex patterns
 
 ### For Integration Teams
+
 1. Review [Authentication](./docs/authentication.md) for security considerations
 2. Study [Message Types](./docs/message-types.md) for data structures
 3. Implement using [Authentication Examples](./docs/examples/authentication.md)
@@ -133,4 +137,4 @@ const result = await restSDK.converse({
 
 ## License
 
-This SDK is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details. 
+This SDK is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.

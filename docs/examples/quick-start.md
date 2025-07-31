@@ -7,11 +7,11 @@ This guide provides practical examples to get you started with each SDK quickly.
 First, install and import the SDK:
 
 ```bash
-npm install xiansai-sdk
+npm install @99xio/xians-sdk-typescript
 ```
 
 ```typescript
-import { RestSDK, SocketSDK, SseSDK, MessageType } from 'xiansai-sdk';
+import { RestSDK, SocketSDK, SseSDK, MessageType } from '@99xio/xians-sdk-typescript';
 ```
 
 ## Environment Configuration
@@ -30,7 +30,7 @@ XIANSAI_SERVER_URL=https://api.yourdomain.com
 ### Example 1: Simple Q&A Bot
 
 ```typescript
-import { RestSDK } from 'xiansai-sdk';
+import { RestSDK } from '@99xio/xians-sdk-typescript';
 
 const restSDK = new RestSDK({
   tenantId: process.env.XIANSAI_TENANT_ID!,
@@ -131,7 +131,7 @@ processBatch([
 ### Example 1: Real-time Chat Application
 
 ```typescript
-import { SocketSDK, MessageType } from 'xiansai-sdk';
+import { SocketSDK, MessageType } from '@99xio/xians-sdk-typescript';
 
 const socketSDK = new SocketSDK({
   tenantId: process.env.XIANSAI_TENANT_ID!,
@@ -314,7 +314,7 @@ startWorkflow('user-onboarding', {
 ### Example 1: Live Notifications
 
 ```typescript
-import { SseSDK } from 'xiansai-sdk';
+import { SseSDK } from '@99xio/xians-sdk-typescript';
 
 const sseSDK = new SseSDK({
   tenantId: process.env.XIANSAI_TENANT_ID!,

@@ -15,7 +15,7 @@ The SSE SDK offers:
 ## Installation
 
 ```typescript
-import { SseSDK } from 'xiansai-sdk';
+import { SseSDK } from '@99xio/xians-sdk-typescript';
 ```
 
 ## Configuration
