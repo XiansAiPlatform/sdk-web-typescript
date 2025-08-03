@@ -98,30 +98,6 @@ export class RestSDK {
   }
 
   /**
-   * Gets the authentication token based on the configured method
-   * When both API key and JWT methods are provided, JWT takes precedence
-   */
-  private async getAuthToken(): Promise<string> {
-    // Prioritize JWT methods when available
-    if (this.options.getJwtToken) {
-      try {
-        return await this.options.getJwtToken();
-      } catch (error) {
-        if (this.options.logger) {
-          this.options.logger('error', 'Failed to get JWT token', error);
-        }
-        throw new Error(`Failed to get JWT token: ${error}`);
-      }
-    } else if (this.options.jwtToken) {
-      return this.options.jwtToken;
-    } else if (this.options.apiKey) {
-      return this.options.apiKey;
-    } else {
-      throw new Error('No authentication method available');
-    }
-  }
-
-  /**
    * Get JWT token for Authorization header
    * @returns JWT token
    */
