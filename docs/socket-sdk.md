@@ -298,6 +298,20 @@ await socketSDK.getThreadHistory(
 );
 ```
 
+### 4. Thread Management
+
+#### Delete Thread
+
+```typescript
+// Delete a conversation thread
+await socketSDK.deleteThread(
+  'customer-support',  // workflow
+  'user-123'          // participantId
+);
+
+// Thread and all its messages will be permanently deleted
+```
+
 ## Real-time Event Handling
 
 ### Chat Message Events
@@ -586,6 +600,16 @@ class ChatApplication {
     this.displayMessage('User', text, 'outgoing');
   }
 
+  async clearConversation() {
+    await this.socketSDK.deleteThread(
+      this.currentWorkflow,
+      this.currentParticipant
+    );
+    
+    // Clear the UI
+    this.clearChatUI();
+  }
+
   private handleAgentMessage(message: Message) {
     this.displayMessage('Agent', message.text!, 'incoming');
   }
@@ -810,6 +834,39 @@ const socketSDK = new SocketSDK({
     }
   }
 });
+```
+
+### 5. Thread Management
+
+```typescript
+// ✅ Confirm before deleting threads
+async function clearConversation(workflow: string, participantId: string) {
+  const confirmed = confirm('Are you sure you want to delete this conversation? This action cannot be undone.');
+  
+  if (confirmed) {
+    try {
+      await socketSDK.deleteThread(workflow, participantId);
+      clearChatUI();
+      showNotification('Conversation deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete thread:', error);
+      showErrorNotification('Failed to delete conversation');
+    }
+  }
+}
+
+// ✅ Handle errors gracefully
+async function safeDeleteThread(workflow: string, participantId: string) {
+  try {
+    await socketSDK.deleteThread(workflow, participantId);
+  } catch (error) {
+    if (error.message.includes('Connection is not established')) {
+      showErrorNotification('Please reconnect and try again');
+    } else {
+      showErrorNotification('Failed to delete conversation');
+    }
+  }
+}
 ```
 
 ## Next Steps
