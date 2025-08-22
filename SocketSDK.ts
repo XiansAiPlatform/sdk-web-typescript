@@ -634,6 +634,33 @@ export class SocketSDK {
   }
 
   /**
+   * Delete thread for a workflow and participant
+   */
+  public async deleteThread(workflow: string, participantId: string): Promise<void> {
+    if (!this.connection || this.connectionState !== ConnectionState.Connected) {
+      throw new Error('Connection is not established');
+    }
+
+    try {
+      if (this.options.logger) {
+        this.options.logger('debug', 'Deleting thread', { workflow, participantId, tenantId: this.options.tenantId });
+      }
+
+      await this.connection.invoke('DeleteThread', workflow, participantId);
+      
+      if (this.options.logger) {
+        this.options.logger('info', 'Thread deleted successfully', { workflow, participantId });
+      }
+    } catch (error) {
+      if (this.options.logger) {
+        this.options.logger('error', 'Failed to delete thread', error);
+      }
+      throw error;
+    }
+  }
+
+
+  /**
    * Subscribes to agent notifications for a workflow
    */
   public async subscribeToAgent(workflow: string, participantId: string): Promise<void> {
