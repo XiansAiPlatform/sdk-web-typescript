@@ -63,6 +63,7 @@ The repository uses GitHub Actions to automatically build and publish releases w
    ```
 
 2. **Commit and push changes:**
+
    ```bash
    git add package.json
    git commit -m "Bump version to 1.2.3"
@@ -70,6 +71,7 @@ The repository uses GitHub Actions to automatically build and publish releases w
    ```
 
 3. **Create and push version tag:**
+
    ```bash
    export VERSION=1.2.3  # or 1.2.3-beta for pre-release
    git tag -a v$VERSION -m "Release v$VERSION"
