@@ -1,12 +1,14 @@
 # SSE SDK
 
-The SSE SDK provides real-time server-to-client communication using Server-Sent Events (SSE). It's ideal for live notifications, status monitoring, and one-way real-time updates where bidirectional communication isn't required.
+The SSE SDK provides real-time server-to-client communication using Server-Sent Events against **UserApi** (`GET /api/user/sse/events`). It's ideal for live notifications, status monitoring, and one-way real-time updates where bidirectional communication isn't required.
+
+See [Server API Usage](./server-api.md) for query parameters and the UserApi vs WebApi distinction.
 
 ## Overview
 
 The SSE SDK offers:
 
-- **Event streaming**: Continuous server-to-client updates
+- **Event streaming**: Continuous server-to-client updates from `/api/user/sse/events`
 - **Heartbeat monitoring**: Connection health checks with subscriber counts
 - **Automatic reconnection**: Resilient connection handling
 - **Event-driven architecture**: React to different event types

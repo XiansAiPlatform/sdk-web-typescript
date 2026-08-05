@@ -1,6 +1,6 @@
 # XiansAi TypeScript/JavaScript SDK
 
-A comprehensive TypeScript SDK for real-time and synchronous communication with XiansAi Server, enabling AI-powered workflows and conversations in your applications.
+A comprehensive TypeScript SDK for real-time and synchronous communication with the XiansAi Server **UserApi**, enabling AI-powered workflows and conversations in your applications.
 
 ## Features
 
@@ -68,6 +68,7 @@ const result = await restSDK.converse({
 | Document | Description | When to Read |
 |----------|-------------|--------------|
 | **[Overview](./docs/overview.md)** | Architecture, concepts, and SDK comparison | Start here to understand the system |
+| **[Server API Usage](./docs/server-api.md)** | UserApi endpoints this SDK calls (vs WebApi) | When wiring `serverUrl` or debugging HTTP/WS paths |
 | **[Authentication](./docs/authentication.md)** | API keys vs JWT tokens, security setup | Before implementing auth |
 | **[Quick Start Examples](./docs/examples/quick-start.md)** | Practical examples for each SDK | When ready to code |
 
@@ -113,21 +114,23 @@ const result = await restSDK.converse({
 ### For Beginners
 
 1. Read [Overview](./docs/overview.md) to understand the architecture
-2. Set up [Authentication](./docs/authentication.md)
-3. Try [Quick Start Examples](./docs/examples/quick-start.md)
-4. Explore individual SDK documentation as needed
+2. Skim [Server API Usage](./docs/server-api.md) so `serverUrl` points at UserApi
+3. Set up [Authentication](./docs/authentication.md)
+4. Try [Quick Start Examples](./docs/examples/quick-start.md)
+5. Explore individual SDK documentation as needed
 
 ### For Experienced Developers
 
-1. Review [Overview](./docs/overview.md) for architecture understanding
+1. Review [Overview](./docs/overview.md) and [Server API Usage](./docs/server-api.md)
 2. Jump to relevant SDK documentation ([REST](./docs/rest-sdk.md), [Socket](./docs/socket-sdk.md), [SSE](./docs/sse-sdk.md))
 3. Check [Advanced Examples](./docs/examples/advanced.md) for complex patterns
 
 ### For Integration Teams
 
-1. Review [Authentication](./docs/authentication.md) for security considerations
-2. Study [Message Types](./docs/message-types.md) for data structures
-3. Implement using [Authentication Examples](./docs/examples/authentication.md)
+1. Confirm [Server API Usage](./docs/server-api.md) (UserApi paths vs WebApi)
+2. Review [Authentication](./docs/authentication.md) for security considerations
+3. Study [Message Types](./docs/message-types.md) for data structures
+4. Implement using [Authentication Examples](./docs/examples/authentication.md)
 
 ## Support
 

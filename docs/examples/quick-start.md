@@ -16,7 +16,7 @@ import { RestSDK, SocketSDK, SseSDK, MessageType } from '@99xio/xians-sdk-typesc
 
 ## Environment Configuration
 
-Set up your environment variables:
+Set up your environment variables. `XIANSAI_SERVER_URL` must point at a server that exposes **UserApi** (combined process or `--user` service) — see [Server API Usage](../server-api.md).
 
 ```bash
 # .env

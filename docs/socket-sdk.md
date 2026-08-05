@@ -1,12 +1,14 @@
 # Socket SDK
 
-The Socket SDK provides real-time bidirectional communication with XiansAi backend agents using SignalR WebSockets. It's ideal for interactive applications, real-time chat, and scenarios requiring immediate response to agent actions.
+The Socket SDK provides real-time bidirectional communication with XiansAi backend agents using the UserApi SignalR hub at `/ws/chat`. It's ideal for interactive applications, real-time chat, and scenarios requiring immediate response to agent actions.
+
+See [Server API Usage](./server-api.md) for hub methods and the UserApi vs WebApi distinction.
 
 ## Overview
 
 The Socket SDK offers:
 
-- **Real-time messaging**: Instant bidirectional communication
+- **Real-time messaging**: Instant bidirectional communication over `/ws/chat`
 - **Event-driven architecture**: React to agent responses immediately  
 - **Connection management**: Automatic reconnection and state tracking
 - **Group subscriptions**: Subscribe to specific workflow notifications

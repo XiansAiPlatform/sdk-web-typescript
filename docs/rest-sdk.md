@@ -1,14 +1,16 @@
 # REST SDK
 
-The REST SDK provides HTTP-based communication with XiansAi backend agents. It's ideal for server-to-server communication, batch processing, and synchronous workflows where real-time bidirectional communication isn't required.
+The REST SDK provides HTTP-based communication with XiansAi backend agents via **UserApi** (`/api/user/rest/*`). It's ideal for server-to-server communication, batch processing, and synchronous workflows where real-time bidirectional communication isn't required.
+
+See [Server API Usage](./server-api.md) for the full path map and UserApi vs WebApi distinction.
 
 ## Overview
 
 The REST SDK offers three main operations:
 
-- **Send**: Fire-and-forget message delivery
-- **Converse**: Synchronous request-response conversations  
-- **History**: Retrieve conversation history
+- **Send**: Fire-and-forget message delivery → `POST /api/user/rest/send`
+- **Converse**: Synchronous request-response conversations → `POST /api/user/rest/converse`
+- **History**: Retrieve conversation history → `GET /api/user/rest/history`
 
 ## Installation
 
