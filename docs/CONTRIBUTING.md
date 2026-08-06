@@ -362,10 +362,12 @@ const { RestSDK } = require('@99xio/xians-sdk-typescript');
 
 ### Main Exports
 
-- **RestSDK** - HTTP/REST API client
-- **SocketSDK** - WebSocket/SignalR client  
-- **SseSDK** - Server-Sent Events client
-- **AgentSDK** - Main SDK class
+All public SDKs target the server **UserApi** (see [Server API Usage](./server-api.md)):
+
+- **RestSDK** - HTTP client for `/api/user/rest/*`
+- **SocketSDK** - SignalR client for `/ws/chat`
+- **SseSDK** - SSE client for `/api/user/sse/events`
+- **AgentSDK** - Higher-level facade over the same UserApi SignalR hub
 
 ### Built Files
 

@@ -14,9 +14,14 @@ npm install @99xio/xians-sdk-typescript
 import { RestSDK, SocketSDK, SseSDK, MessageType } from '@99xio/xians-sdk-typescript';
 ```
 
+Prefer a full browser app? Use the runnable samples under [`example/`](../../example/):
+
+- [`example/api-key-chat`](../../example/api-key-chat/) — API key, REST + SSE
+- [`example/oidc-jwt`](../../example/oidc-jwt/) — OIDC login, JWT via `getJwtToken`
+
 ## Environment Configuration
 
-Set up your environment variables:
+Set up your environment variables. `XIANSAI_SERVER_URL` must point at a server that exposes **UserApi** (combined process or `--user` service) — see [Server API Usage](../server-api.md).
 
 ```bash
 # .env

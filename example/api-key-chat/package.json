@@ -1,0 +1,17 @@
+{
+  "name": "xians-sdk-api-key-chat-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "API-key browser chat example: send with RestSDK, listen with SseSDK",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^5.2.2",
+    "vite": "^6.4.3"
+  }
+}

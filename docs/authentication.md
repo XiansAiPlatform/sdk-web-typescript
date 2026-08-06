@@ -1,6 +1,8 @@
 # Authentication
 
-The XiansAi SDK supports two authentication methods: **API Keys** and **JWT Tokens**. Choose the method that best fits your security requirements and deployment architecture.
+The XiansAi SDK supports two authentication methods: **API Keys** and **JWT Tokens**. Both authenticate against the server **UserApi** (not WebApi). Choose the method that best fits your security requirements and deployment architecture.
+
+For the exact paths and query parameters each SDK uses, see [Server API Usage](./server-api.md).
 
 ## Authentication Methods Comparison
 
@@ -365,6 +367,13 @@ const sdk = new SocketSDK({
   }
 });
 ```
+
+## Runnable browser examples
+
+| Example | Auth | Notes |
+|---------|------|--------|
+| [`example/api-key-chat`](../example/api-key-chat/) | API key | REST send + SSE listen |
+| [`example/oidc-jwt`](../example/oidc-jwt/) | OIDC JWT via `getJwtToken` | Requires IdP + Agent Studio Tenant Settings OIDC block |
 
 ## Next Steps
 

@@ -1,7 +1,7 @@
 import './styles.css';
-import RestSDK from '../../RestSDK';
-import SseSDK from '../../SseSDK';
-import type { Message } from '../../types';
+import RestSDK from '../../../RestSDK';
+import SseSDK from '../../../SseSDK';
+import type { Message } from '../../../types';
 
 /**
  * Minimal chat example for the XiansAi SDK.
