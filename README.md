@@ -109,6 +109,17 @@ const result = await restSDK.converse({
 
 👉 **Not sure?** Start with the [Overview](./docs/overview.md) to understand which SDK fits your use case.
 
+## Runnable examples
+
+Vite apps under [`example/`](./example/) import the SDK from source for local testing against UserApi:
+
+| Example | Auth |
+|---------|------|
+| [`example/api-key-chat`](./example/api-key-chat/) | API key |
+| [`example/oidc-jwt`](./example/oidc-jwt/) | OIDC → JWT (`getJwtToken`) |
+
+See [`example/README.md`](./example/README.md) for how to run each one.
+
 ## Learning Path
 
 ### For Beginners

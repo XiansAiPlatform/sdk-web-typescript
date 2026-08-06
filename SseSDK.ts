@@ -14,14 +14,18 @@ import {
 
 // Import EventSource polyfill for Node.js environments
 let EventSourceImpl: typeof EventSource;
+/** True when using the browser-native EventSource (init dict cannot set Authorization). */
+let isNativeBrowserEventSource = false;
 if (typeof globalThis !== 'undefined' && globalThis.EventSource) {
   // Use native EventSource (browser environment)
   EventSourceImpl = globalThis.EventSource;
+  isNativeBrowserEventSource = true;
 } else if (typeof window !== 'undefined' && window.EventSource) {
   // Use native EventSource (browser environment with window)
   EventSourceImpl = window.EventSource;
+  isNativeBrowserEventSource = true;
 } else {
-  // Fallback to polyfill for Node.js environment
+  // Fallback to polyfill for Node.js environment (supports custom headers)
   try {
     const EventSourcePolyfill = require('eventsource');
     EventSourceImpl = EventSourcePolyfill.EventSource;
@@ -336,48 +340,56 @@ export class SseSDK {
         });
       }
 
-      // Create EventSource with custom headers for JWT authentication
-      let eventSource: EventSource;
-      
       // Create EventSource based on available authentication methods
+      let eventSource: EventSource;
+
       if (this.options.getJwtToken || this.options.jwtToken) {
-        // For JWT authentication, try to use EventSource with custom headers
-        // Note: This may not work in all browsers - EventSource spec doesn't support custom headers
-        // But some modern environments (Node.js, some browsers) do support it
         const jwtToken = await this.getJwtToken();
-        
-        try {
-          // Try to create EventSource with headers (modern browsers/Node.js)
-          const eventSourceConfig = {
-            headers: {
-              'Authorization': `Bearer ${jwtToken}`
-            }
-          };
-          
-          // Some EventSource polyfills or Node.js implementations support this
-          eventSource = new (EventSourceImpl as any)(url, eventSourceConfig);
-          
-          if (this.options.logger) {
-            this.options.logger('debug', 'Created EventSource with Authorization header', {
-              hasApiKey: !!this.options.apiKey,
-              usingBothMethods: !!this.options.apiKey
-            });
-          }
-        } catch (headerError) {
-          if (this.options.logger) {
-            this.options.logger('warn', 'EventSource with custom headers not supported, falling back to query parameter method', headerError);
-          }
-          
-          // Fallback: Add token as query parameter for environments that don't support headers
+
+        // Native browser EventSource ignores a `headers` init option and does not throw,
+        // so Authorization never reaches the server. Use ?access_token= in that case
+        // (UserApi EndpointAuthenticationHandler accepts it as a JWT fallback).
+        // Node/polyfill EventSource can send Authorization: Bearer.
+        if (isNativeBrowserEventSource) {
           const urlWithToken = new URL(url);
           urlWithToken.searchParams.set('access_token', jwtToken);
           eventSource = new EventSourceImpl(urlWithToken.toString());
-          
+
           if (this.options.logger) {
-            this.options.logger('debug', 'Created EventSource with access_token query parameter', {
+            this.options.logger('debug', 'Created EventSource with access_token query parameter (native EventSource cannot set Authorization headers)', {
               hasApiKey: !!this.options.apiKey,
               usingBothMethods: !!this.options.apiKey
             });
+          }
+        } else {
+          try {
+            eventSource = new (EventSourceImpl as any)(url, {
+              headers: {
+                'Authorization': `Bearer ${jwtToken}`
+              }
+            });
+
+            if (this.options.logger) {
+              this.options.logger('debug', 'Created EventSource with Authorization header', {
+                hasApiKey: !!this.options.apiKey,
+                usingBothMethods: !!this.options.apiKey
+              });
+            }
+          } catch (headerError) {
+            if (this.options.logger) {
+              this.options.logger('warn', 'EventSource with custom headers not supported, falling back to query parameter method', headerError);
+            }
+
+            const urlWithToken = new URL(url);
+            urlWithToken.searchParams.set('access_token', jwtToken);
+            eventSource = new EventSourceImpl(urlWithToken.toString());
+
+            if (this.options.logger) {
+              this.options.logger('debug', 'Created EventSource with access_token query parameter', {
+                hasApiKey: !!this.options.apiKey,
+                usingBothMethods: !!this.options.apiKey
+              });
+            }
           }
         }
       } else {

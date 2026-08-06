@@ -1,17 +1,20 @@
 {
-  "name": "xians-sdk-chat-example",
+  "name": "xians-sdk-oidc-jwt-example",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Minimal browser chat example: send with RestSDK, listen with SseSDK",
+  "description": "OIDC/JWT browser chat example: login with oidc-client-ts, send with RestSDK, listen with SseSDK",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
+  "dependencies": {
+    "oidc-client-ts": "^3.1.0"
+  },
   "devDependencies": {
     "@types/node": "^26.1.1",
     "typescript": "^5.2.2",
-    "vite": "^5.4.0"
+    "vite": "^6.4.3"
   }
 }

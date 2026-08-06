@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>XiansAi SDK · OIDC JWT Chat</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app__header">
+        <div class="brand">
+          <span class="brand__dot"></span>
+          <span class="brand__title">XiansAi Chat · OIDC</span>
+        </div>
+        <div class="status" id="status">
+          <span class="status__dot" id="statusDot"></span>
+          <span id="statusText">Disconnected</span>
+        </div>
+      </header>
+
+      <!-- OIDC session -->
+      <section class="auth" id="auth">
+        <div class="auth__row">
+          <div class="auth__user" id="authUser">Checking session…</div>
+          <div class="auth__actions">
+            <button type="button" class="btn btn--primary" id="loginBtn">Sign in</button>
+            <button type="button" class="btn" id="logoutBtn" disabled>Sign out</button>
+          </div>
+        </div>
+        <p class="auth__hint">
+          JWT auth uses your IdP access token via <code>getJwtToken</code> — no API key.
+          Save matching OIDC settings in Agent Studio → Tenant Settings before connecting.
+        </p>
+      </section>
+
+      <!-- Connection settings -->
+      <section class="config" id="config">
+        <form class="config__form" id="configForm">
+          <div class="field field--full">
+            <label>Server (proxied via Vite dev server)</label>
+            <div class="proxy-note">
+              Requests go to <code>this origin</code> → proxied to
+              <code id="proxyTarget">http://localhost:5005</code>
+              <span class="proxy-note__hint">set <code>VITE_SERVER_URL</code> in <code>.env</code></span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="tenantId">Tenant ID</label>
+            <input id="tenantId" name="tenantId" placeholder="my-tenant" required />
+          </div>
+          <div class="field">
+            <label for="participantId">Participant ID (from OIDC)</label>
+            <input id="participantId" name="participantId" placeholder="you@example.com" required />
+          </div>
+          <div class="field field--full">
+            <label for="workflow">Workflow</label>
+            <input id="workflow" name="workflow" placeholder="Agent Name:Flow Name" required />
+          </div>
+          <div class="field field--actions">
+            <button type="submit" class="btn btn--primary" id="connectBtn" disabled>Connect</button>
+            <button type="button" class="btn" id="disconnectBtn" disabled>Disconnect</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Chat -->
+      <main class="chat" id="chat">
+        <div class="messages" id="messages">
+          <div class="empty" id="emptyState">
+            Sign in with your OIDC provider, connect, then send a message to chat with your agent.
+          </div>
+        </div>
+        <form class="composer" id="composer">
+          <input
+            id="input"
+            class="composer__input"
+            placeholder="Type a message…"
+            autocomplete="off"
+            disabled
+          />
+          <button type="submit" class="btn btn--primary" id="sendBtn" disabled>Send</button>
+        </form>
+      </main>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

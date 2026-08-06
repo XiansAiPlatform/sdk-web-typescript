@@ -415,6 +415,10 @@ const socketSDK = new SocketSDK({
 
 ### OpenID Connect Integration Example
 
+For a runnable Vite app that logs in with `oidc-client-ts` and calls UserApi with
+`getJwtToken`, see [`example/oidc-jwt`](../../example/oidc-jwt/). Save the tenant
+OIDC block in **Agent Studio → Tenant Settings** before testing.
+
 ```typescript
 class OIDCAuthentication {
   private oidcClient: any; // Your OIDC client library

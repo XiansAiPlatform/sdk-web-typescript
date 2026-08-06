@@ -368,6 +368,13 @@ const sdk = new SocketSDK({
 });
 ```
 
+## Runnable browser examples
+
+| Example | Auth | Notes |
+|---------|------|--------|
+| [`example/api-key-chat`](../example/api-key-chat/) | API key | REST send + SSE listen |
+| [`example/oidc-jwt`](../example/oidc-jwt/) | OIDC JWT via `getJwtToken` | Requires IdP + Agent Studio Tenant Settings OIDC block |
+
 ## Next Steps
 
 - [Message Types](./message-types.md) - Understand message structures
