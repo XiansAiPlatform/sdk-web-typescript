@@ -58,6 +58,15 @@ function attachJwtProxyAuth(): ProxyOptions['configure'] {
   };
 }
 
+/** Serve `/callback` (Azure SPA redirect URI) from `callback.html`. */
+function rewriteCallbackPath(url: string | undefined): string | undefined {
+  if (!url) return url;
+  if (url === '/callback' || url.startsWith('/callback?')) {
+    return url.replace('/callback', '/callback.html');
+  }
+  return url;
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   // The real XiansAi server to forward API calls to. Defaults to the common
@@ -82,8 +91,30 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    plugins: [
+      {
+        name: 'oidc-callback-path',
+        configureServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            const rewritten = rewriteCallbackPath(req.url);
+            if (rewritten) req.url = rewritten;
+            next();
+          });
+        },
+        configurePreviewServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            const rewritten = rewriteCallbackPath(req.url);
+            if (rewritten) req.url = rewritten;
+            next();
+          });
+        },
+      },
+    ],
     server: {
-      port: 5174,
+      // Pin host so the browser origin matches Azure redirect URIs (localhost ≠ 127.0.0.1).
+      host: 'localhost',
+      port: 3000,
+      strictPort: true,
       open: true,
       // Proxy API + SSE calls to the real server so the browser only ever makes
       // same-origin requests. This sidesteps CORS entirely (the server does not

@@ -3,9 +3,12 @@ import RestSDK from '../../../RestSDK';
 import SseSDK from '../../../SseSDK';
 import type { Message } from '../../../types';
 import {
+  clearOidcCallbackUrl,
+  completeLogin,
   formatUserLabel,
   getAccessToken,
   getCurrentUser,
+  hasOidcCallbackParams,
   login,
   logout,
   participantIdFromUser,
@@ -96,7 +99,8 @@ function prefillForm() {
 async function refreshAuthUi() {
   try {
     const user = await getCurrentUser();
-    signedIn = !!(user && !user.expired && user.access_token);
+    const hasToken = !!(user && (user.id_token || user.access_token));
+    signedIn = !!(user && !user.expired && hasToken);
     authUserEl.textContent = formatUserLabel(signedIn ? user : null);
     authUserEl.classList.toggle('is-signed-in', signedIn);
     loginBtn.disabled = signedIn;
@@ -117,6 +121,14 @@ async function refreshAuthUi() {
     const fromOidc = participantIdFromUser(signedIn ? user : null);
     if (fromOidc) {
       participantInput.value = fromOidc;
+      if (signedIn && !fromOidc.includes('@')) {
+        addMessage(
+          'system',
+          'OIDC token has no email claim — participantId fell back to sub. ' +
+            'Add email/emails to the Azure app token claims (or B2C policy OutputClaims), ' +
+            'then sign out and sign in again. Check the browser console for claim keys.'
+        );
+      }
     }
   } catch (err) {
     signedIn = false;
@@ -330,6 +342,24 @@ composer.addEventListener('submit', (e) => {
   sendMessage(text);
 });
 
-prefillForm();
-refreshAuthUi();
-setChatEnabled(false);
+async function bootstrap() {
+  prefillForm();
+  setChatEnabled(false);
+
+  // Azure SPA redirect URIs are often the app origin (no /callback.html). Handle
+  // the code response on this page so authorize `state` stays in the same document origin.
+  if (hasOidcCallbackParams()) {
+    try {
+      await completeLogin();
+      clearOidcCallbackUrl();
+      addMessage('system', 'Signed in');
+    } catch (err) {
+      console.error(err);
+      addMessage('system', `Login failed: ${(err as Error).message}`);
+    }
+  }
+
+  await refreshAuthUi();
+}
+
+bootstrap();
