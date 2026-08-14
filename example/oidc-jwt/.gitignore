@@ -1,3 +1,10 @@
 node_modules
 dist
+
+# Local env/tenant configs hold real credentials. Only .env.example is tracked.
 .env
+.env_*
+.env.*
+!.env.example
+*.local.json
+.parklydevtest.json

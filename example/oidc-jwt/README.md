@@ -30,8 +30,7 @@ npm install
 npm run dev
 ```
 
-Vite serves on **http://localhost:5174** (port differs from `api-key-chat` so
-both can run together).
+Vite serves on **http://localhost:3000**.
 
 ## Configure
 
@@ -43,9 +42,9 @@ both can run together).
 | `VITE_OIDC_AUTHORITY` | IdP issuer URL |
 | `VITE_OIDC_CLIENT_ID` | OAuth client id |
 | `VITE_OIDC_CLIENT_SECRET` | Required for **Google Web** clients; leave empty for public SPAs (Auth0) |
-| `VITE_OIDC_REDIRECT_URI` | e.g. `http://localhost:5174/callback.html` |
-| `VITE_OIDC_SILENT_REDIRECT_URI` | e.g. `http://localhost:5174/silent-renew.html` |
-| `VITE_OIDC_POST_LOGOUT_REDIRECT_URI` | e.g. `http://localhost:5174/` |
+| `VITE_OIDC_REDIRECT_URI` | e.g. `http://localhost:3000/callback.html` |
+| `VITE_OIDC_SILENT_REDIRECT_URI` | e.g. `http://localhost:3000/silent-renew.html` |
+| `VITE_OIDC_POST_LOGOUT_REDIRECT_URI` | e.g. `http://localhost:3000/` |
 | `VITE_OIDC_SCOPE` | Default `openid profile email` |
 | `VITE_OIDC_TOKEN_TYPE` | `access_token` (default) or `id_token` |
 | `VITE_OIDC_AUDIENCE` | Optional; some IdPs need an audience query param |
@@ -98,10 +97,10 @@ API), not only in `appsettings.json`.
    - Application type: **Web application**
    - Name: e.g. `xians-sdk-oidc-jwt-local`
    - **Authorized JavaScript origins**
-     - `http://localhost:5174`
+     - `http://localhost:3000`
    - **Authorized redirect URIs**
-     - `http://localhost:5174/callback.html`
-     - `http://localhost:5174/silent-renew.html`
+     - `http://localhost:3000/callback.html`
+     - `http://localhost:3000/silent-renew.html`
 4. Create, then copy both:
    - **Client ID** (`….apps.googleusercontent.com`)
    - **Client secret** (`GOCSPX-…`)
@@ -132,9 +131,9 @@ VITE_WORKFLOW=default:Echo Agent:Supervisor Workflow:Echo Agent - Ugly Pelican
 VITE_OIDC_AUTHORITY=https://accounts.google.com
 VITE_OIDC_CLIENT_ID=1234567890-abcdefg.apps.googleusercontent.com
 VITE_OIDC_CLIENT_SECRET=GOCSPX-your-google-client-secret
-VITE_OIDC_REDIRECT_URI=http://localhost:5174/callback.html
-VITE_OIDC_SILENT_REDIRECT_URI=http://localhost:5174/silent-renew.html
-VITE_OIDC_POST_LOGOUT_REDIRECT_URI=http://localhost:5174/
+VITE_OIDC_REDIRECT_URI=http://localhost:3000/callback.html
+VITE_OIDC_SILENT_REDIRECT_URI=http://localhost:3000/silent-renew.html
+VITE_OIDC_POST_LOGOUT_REDIRECT_URI=http://localhost:3000/
 VITE_OIDC_SCOPE=openid profile email
 
 # Google access tokens are usually opaque — send the ID token JWT to UserApi.
@@ -235,7 +234,7 @@ npm install
 npm run dev
 ```
 
-1. Open http://localhost:5174  
+1. Open http://localhost:3000  
 2. **Sign in** → Google account → return via `/callback.html`  
 3. Confirm **Participant ID (from OIDC)** shows your email  
 4. Set tenant + workflow if needed → **Connect** → send a chat message  

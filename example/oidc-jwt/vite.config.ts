@@ -58,6 +58,29 @@ function attachJwtProxyAuth(): ProxyOptions['configure'] {
   };
 }
 
+/**
+ * Serve registered Azure SPA redirect paths from the matching HTML entry.
+ * `/callback` → dedicated callback page; `/auth` → the main SPA (login + post-logout).
+ */
+function rewriteOidcRedirectPath(url: string | undefined): string | undefined {
+  if (!url) return url;
+
+  const q = url.indexOf('?');
+  const pathname = q >= 0 ? url.slice(0, q) : url;
+  const qs = q >= 0 ? url.slice(q) : '';
+  const path = pathname.replace(/\/+$/, '') || '/';
+
+  if (path === '/callback') {
+    return `/callback.html${qs}`;
+  }
+
+  if (path === '/auth') {
+    return `/index.html${qs}`;
+  }
+
+  return url;
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   // The real XiansAi server to forward API calls to. Defaults to the common
@@ -82,8 +105,30 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    plugins: [
+      {
+        name: 'oidc-callback-path',
+        configureServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            const rewritten = rewriteOidcRedirectPath(req.url);
+            if (rewritten) req.url = rewritten;
+            next();
+          });
+        },
+        configurePreviewServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            const rewritten = rewriteOidcRedirectPath(req.url);
+            if (rewritten) req.url = rewritten;
+            next();
+          });
+        },
+      },
+    ],
     server: {
-      port: 5174,
+      // Pin host so the browser origin matches Azure redirect URIs (localhost ≠ 127.0.0.1).
+      host: 'localhost',
+      port: 4200,
+      strictPort: true,
       open: true,
       // Proxy API + SSE calls to the real server so the browser only ever makes
       // same-origin requests. This sidesteps CORS entirely (the server does not

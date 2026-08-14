@@ -3,12 +3,16 @@ import RestSDK from '../../../RestSDK';
 import SseSDK from '../../../SseSDK';
 import type { Message } from '../../../types';
 import {
+  clearOidcCallbackUrl,
+  completeLogin,
   formatUserLabel,
   getAccessToken,
   getCurrentUser,
+  hasOidcCallbackParams,
   login,
   logout,
   participantIdFromUser,
+  userIdFromUser,
 } from './auth';
 
 /**
@@ -47,6 +51,9 @@ const disconnectBtn = $<HTMLButtonElement>('disconnectBtn');
 const loginBtn = $<HTMLButtonElement>('loginBtn');
 const logoutBtn = $<HTMLButtonElement>('logoutBtn');
 const authUserEl = $<HTMLDivElement>('authUser');
+const authUserIdEl = $<HTMLElement>('authUserId');
+const authTenantEl = $<HTMLElement>('authTenant');
+const tenantIdInput = $<HTMLInputElement>('tenantId');
 const composer = $<HTMLFormElement>('composer');
 const input = $<HTMLInputElement>('input');
 const sendBtn = $<HTMLButtonElement>('sendBtn');
@@ -78,9 +85,20 @@ function loadConfig(): Partial<ChatConfig> {
   };
 }
 
+function currentTenantId(): string {
+  return tenantIdInput.value.trim() || import.meta.env.VITE_TENANT_ID?.trim() || '';
+}
+
+function renderSessionMeta(userId?: string) {
+  if (userId !== undefined) {
+    authUserIdEl.textContent = userId || '—';
+  }
+  authTenantEl.textContent = currentTenantId() || '—';
+}
+
 function prefillForm() {
   const c = loadConfig();
-  ($('tenantId') as HTMLInputElement).value = c.tenantId ?? '';
+  tenantIdInput.value = c.tenantId ?? '';
   ($('workflow') as HTMLInputElement).value = c.workflow ?? '';
   ($('participantId') as HTMLInputElement).value = c.participantId ?? '';
 
@@ -88,6 +106,7 @@ function prefillForm() {
   if (proxyEl) {
     proxyEl.textContent = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:5005';
   }
+  renderSessionMeta();
 }
 
 // ---------------------------------------------------------------------------
@@ -96,9 +115,11 @@ function prefillForm() {
 async function refreshAuthUi() {
   try {
     const user = await getCurrentUser();
-    signedIn = !!(user && !user.expired && user.access_token);
+    const hasToken = !!(user && (user.id_token || user.access_token));
+    signedIn = !!(user && !user.expired && hasToken);
     authUserEl.textContent = formatUserLabel(signedIn ? user : null);
     authUserEl.classList.toggle('is-signed-in', signedIn);
+    renderSessionMeta(signedIn ? userIdFromUser(user) : '');
     loginBtn.disabled = signedIn;
     logoutBtn.disabled = !signedIn;
     connectBtn.disabled = !signedIn || !!sseSDK;
@@ -117,11 +138,20 @@ async function refreshAuthUi() {
     const fromOidc = participantIdFromUser(signedIn ? user : null);
     if (fromOidc) {
       participantInput.value = fromOidc;
+      if (signedIn && !fromOidc.includes('@')) {
+        addMessage(
+          'system',
+          'OIDC token has no email claim — participantId fell back to sub. ' +
+            'Add email/emails to the Azure app token claims (or B2C policy OutputClaims), ' +
+            'then sign out and sign in again. Check the browser console for claim keys.'
+        );
+      }
     }
   } catch (err) {
     signedIn = false;
     authUserEl.textContent = `Auth error: ${(err as Error).message}`;
     authUserEl.classList.remove('is-signed-in');
+    renderSessionMeta('');
     loginBtn.disabled = false;
     logoutBtn.disabled = true;
     connectBtn.disabled = true;
@@ -222,8 +252,9 @@ async function connect(cfg: ChatConfig) {
         if (message.text) addMessage('agent', message.text, message.createdAt);
       },
       onConnected: () => {
-        setStatus('connected', 'Connected');
-        addMessage('system', 'Connected to agent stream (JWT)');
+        renderSessionMeta();
+        setStatus('connected', `Connected · ${cfg.tenantId}`);
+        addMessage('system', `Connected to ${cfg.tenantId} (JWT)`);
       },
       onDisconnected: (reason) => {
         setStatus('disconnected', 'Disconnected');
@@ -317,6 +348,10 @@ configForm.addEventListener('submit', (e) => {
   });
 });
 
+tenantIdInput.addEventListener('input', () => {
+  renderSessionMeta();
+});
+
 disconnectBtn.addEventListener('click', () => {
   disconnect();
   addMessage('system', 'Disconnected');
@@ -330,6 +365,24 @@ composer.addEventListener('submit', (e) => {
   sendMessage(text);
 });
 
-prefillForm();
-refreshAuthUi();
-setChatEnabled(false);
+async function bootstrap() {
+  prefillForm();
+  setChatEnabled(false);
+
+  // Azure SPA redirect URIs are often the app origin (no /callback.html). Handle
+  // the code response on this page so authorize `state` stays in the same document origin.
+  if (hasOidcCallbackParams()) {
+    try {
+      await completeLogin();
+      clearOidcCallbackUrl();
+      addMessage('system', 'Signed in');
+    } catch (err) {
+      console.error(err);
+      addMessage('system', `Login failed: ${(err as Error).message}`);
+    }
+  }
+
+  await refreshAuthUi();
+}
+
+bootstrap();

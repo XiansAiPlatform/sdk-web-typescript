@@ -24,12 +24,10 @@ const clientId = requireEnv('VITE_OIDC_CLIENT_ID', env.VITE_OIDC_CLIENT_ID);
 // with PKCE. Auth0/Keycloak public SPAs leave this empty.
 const clientSecret = env.VITE_OIDC_CLIENT_SECRET?.trim() || undefined;
 const redirectUri =
-  env.VITE_OIDC_REDIRECT_URI?.trim() || `${window.location.origin}/callback.html`;
-const silentRedirectUri =
-  env.VITE_OIDC_SILENT_REDIRECT_URI?.trim() ||
-  `${window.location.origin}/silent-renew.html`;
+  env.VITE_OIDC_REDIRECT_URI?.trim() || `${window.location.origin}/`;
+const silentRedirectUri = env.VITE_OIDC_SILENT_REDIRECT_URI?.trim() || undefined;
 const postLogoutRedirectUri =
-  env.VITE_OIDC_POST_LOGOUT_REDIRECT_URI?.trim() || `${window.location.origin}/`;
+  env.VITE_OIDC_POST_LOGOUT_REDIRECT_URI?.trim() || window.location.origin;
 const scope = env.VITE_OIDC_SCOPE?.trim() || 'openid profile email';
 const audience = env.VITE_OIDC_AUDIENCE?.trim();
 const tokenType =
@@ -37,21 +35,36 @@ const tokenType =
     ? 'id_token'
     : 'access_token';
 
+/** Shared store so authorize `state` survives the IdP round-trip (same origin). */
+const storage = new WebStorageStateStore({ store: window.localStorage });
+
 export const userManager = new UserManager({
   authority,
   client_id: clientId,
   ...(clientSecret ? { client_secret: clientSecret } : {}),
   redirect_uri: redirectUri,
-  silent_redirect_uri: silentRedirectUri,
+  ...(silentRedirectUri ? { silent_redirect_uri: silentRedirectUri } : {}),
   post_logout_redirect_uri: postLogoutRedirectUri,
   response_type: 'code',
   scope,
+  // Prefer refresh_token renew when `offline_access` is requested; iframe silent
+  // renew needs a registered silent_redirect_uri (often missing on Azure SPAs).
   automaticSilentRenew: true,
-  userStore: new WebStorageStateStore({ store: window.localStorage }),
+  userStore: storage,
+  stateStore: storage,
   ...(audience
     ? { extraQueryParams: { audience } }
     : {}),
 });
+
+/** True when the current URL is an OIDC redirect response. */
+export function hasOidcCallbackParams(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return (
+    (params.has('code') && params.has('state')) ||
+    (params.has('error') && params.has('state'))
+  );
+}
 
 /**
  * Cookie name mirrored in vite.config.ts. Native EventSource cannot send
@@ -111,43 +124,160 @@ export function logout(): Promise<void> {
   return userManager.signoutRedirect();
 }
 
-export async function completeLogin(): Promise<User> {
-  const user = await userManager.signinRedirectCallback();
-  const token =
-    tokenType === 'id_token' ? user.id_token : user.access_token;
-  if (token) {
-    persistJwtForDevProxy(token);
+/**
+ * Finish an OIDC redirect/silent/popup callback based on stored request_type.
+ * Prefer this over signinRedirectCallback when redirect_uri may also be used
+ * for silent renew.
+ */
+export async function completeLogin(): Promise<User | void> {
+  const result = await userManager.signinCallback();
+  if (result) {
+    const token =
+      tokenType === 'id_token' ? result.id_token : result.access_token;
+    if (token) {
+      persistJwtForDevProxy(token);
+    }
   }
-  return user;
+  return result;
 }
 
 export async function completeSilentRenew(): Promise<void> {
   await userManager.signinSilentCallback();
 }
 
-/** Prefer email, then sub — used as UserApi participantId. */
+/** Drop ?code&state from the address bar after a successful same-page callback. */
+export function clearOidcCallbackUrl(): void {
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.hash = '';
+  window.history.replaceState({}, document.title, url.pathname);
+}
+
+function claimString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function emailLike(value: unknown): string | null {
+  const s = claimString(value);
+  return s && s.includes('@') ? s : null;
+}
+
+/** Decode a JWT payload without verifying (browser already trusts IdP via OIDC). */
+function decodeJwtPayload(token: string | undefined): Record<string, unknown> | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    return JSON.parse(atob(padded)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+const EMAIL_CLAIM_KEYS = [
+  'email',
+  'emails',
+  'mail',
+  'preferred_username',
+  'upn',
+  'unique_name',
+  'signInName',
+  'verified_primary_email',
+  'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+  'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+];
+
+function findEmailInClaims(claims: Record<string, unknown> | null | undefined): string | null {
+  if (!claims) return null;
+
+  for (const key of EMAIL_CLAIM_KEYS) {
+    const value = claims[key];
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item && typeof item === 'object') {
+          const nested =
+            emailLike((item as Record<string, unknown>).value) ||
+            emailLike((item as Record<string, unknown>).email);
+          if (nested) return nested;
+        }
+        const direct = emailLike(item);
+        if (direct) return direct;
+      }
+      continue;
+    }
+    const direct = emailLike(value);
+    if (direct) return direct;
+  }
+
+  // Last resort: any string claim that looks like an email (custom B2C outputs).
+  for (const value of Object.values(claims)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = emailLike(item);
+        if (found) return found;
+      }
+    } else {
+      const found = emailLike(value);
+      if (found) return found;
+    }
+  }
+
+  return null;
+}
+
+/** Merge profile + raw id/access token payloads for claim lookup. */
+function allUserClaims(user: User): Record<string, unknown> {
+  return {
+    ...(decodeJwtPayload(user.id_token) ?? {}),
+    ...(decodeJwtPayload(user.access_token) ?? {}),
+    ...(user.profile as Record<string, unknown>),
+  };
+}
+
+/** Stable IdP user id: Azure `oid`, else OIDC `sub`. */
+export function userIdFromUser(user: User | null): string {
+  if (!user) return '';
+  const claims = allUserClaims(user);
+  return claimString(claims.oid) || claimString(claims.sub) || '';
+}
+
+/** Prefer email-like claims, then sub — used as UserApi participantId. */
 export function participantIdFromUser(user: User | null): string {
   if (!user) return '';
-  const profile = user.profile;
-  if (typeof profile.email === 'string' && profile.email.trim()) {
-    return profile.email.trim();
+
+  const claims = allUserClaims(user);
+  const email = findEmailInClaims(claims);
+  if (email) return email;
+
+  const sub = claimString(claims.sub);
+  if (sub) {
+    console.warn(
+      '[oidc-jwt] No email claim in ID/access token; falling back to sub for participantId.',
+      'Token claim keys:',
+      Object.keys(claims).sort(),
+    );
   }
-  if (typeof profile.sub === 'string' && profile.sub.trim()) {
-    return profile.sub.trim();
-  }
-  return '';
+  return sub ?? '';
 }
 
 export function formatUserLabel(user: User | null): string {
   if (!user) return 'Not signed in';
+  const participant = participantIdFromUser(user);
   const profile = user.profile;
-  const name =
-    (typeof profile.name === 'string' && profile.name) ||
-    (typeof profile.email === 'string' && profile.email) ||
-    (typeof profile.sub === 'string' && profile.sub) ||
+  const nameClaim = typeof profile.name === 'string' ? profile.name.trim() : '';
+  // Prefer email/participant over a non-email display name (Azure often uses object id-ish values).
+  const label =
+    (participant.includes('@') ? participant : null) ||
+    (nameClaim.includes('@') ? nameClaim : null) ||
+    nameClaim ||
+    participant ||
     'signed in';
   const exp = user.expires_at
     ? new Date(user.expires_at * 1000).toLocaleTimeString()
     : '?';
-  return `${name} · token exp ${exp}`;
+  return `${label} · token exp ${exp}`;
 }
