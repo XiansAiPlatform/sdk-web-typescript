@@ -12,6 +12,7 @@ import {
   login,
   logout,
   participantIdFromUser,
+  userIdFromUser,
 } from './auth';
 
 /**
@@ -50,6 +51,9 @@ const disconnectBtn = $<HTMLButtonElement>('disconnectBtn');
 const loginBtn = $<HTMLButtonElement>('loginBtn');
 const logoutBtn = $<HTMLButtonElement>('logoutBtn');
 const authUserEl = $<HTMLDivElement>('authUser');
+const authUserIdEl = $<HTMLElement>('authUserId');
+const authTenantEl = $<HTMLElement>('authTenant');
+const tenantIdInput = $<HTMLInputElement>('tenantId');
 const composer = $<HTMLFormElement>('composer');
 const input = $<HTMLInputElement>('input');
 const sendBtn = $<HTMLButtonElement>('sendBtn');
@@ -81,9 +85,20 @@ function loadConfig(): Partial<ChatConfig> {
   };
 }
 
+function currentTenantId(): string {
+  return tenantIdInput.value.trim() || import.meta.env.VITE_TENANT_ID?.trim() || '';
+}
+
+function renderSessionMeta(userId?: string) {
+  if (userId !== undefined) {
+    authUserIdEl.textContent = userId || '—';
+  }
+  authTenantEl.textContent = currentTenantId() || '—';
+}
+
 function prefillForm() {
   const c = loadConfig();
-  ($('tenantId') as HTMLInputElement).value = c.tenantId ?? '';
+  tenantIdInput.value = c.tenantId ?? '';
   ($('workflow') as HTMLInputElement).value = c.workflow ?? '';
   ($('participantId') as HTMLInputElement).value = c.participantId ?? '';
 
@@ -91,6 +106,7 @@ function prefillForm() {
   if (proxyEl) {
     proxyEl.textContent = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:5005';
   }
+  renderSessionMeta();
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +119,7 @@ async function refreshAuthUi() {
     signedIn = !!(user && !user.expired && hasToken);
     authUserEl.textContent = formatUserLabel(signedIn ? user : null);
     authUserEl.classList.toggle('is-signed-in', signedIn);
+    renderSessionMeta(signedIn ? userIdFromUser(user) : '');
     loginBtn.disabled = signedIn;
     logoutBtn.disabled = !signedIn;
     connectBtn.disabled = !signedIn || !!sseSDK;
@@ -134,6 +151,7 @@ async function refreshAuthUi() {
     signedIn = false;
     authUserEl.textContent = `Auth error: ${(err as Error).message}`;
     authUserEl.classList.remove('is-signed-in');
+    renderSessionMeta('');
     loginBtn.disabled = false;
     logoutBtn.disabled = true;
     connectBtn.disabled = true;
@@ -234,8 +252,9 @@ async function connect(cfg: ChatConfig) {
         if (message.text) addMessage('agent', message.text, message.createdAt);
       },
       onConnected: () => {
-        setStatus('connected', 'Connected');
-        addMessage('system', 'Connected to agent stream (JWT)');
+        renderSessionMeta();
+        setStatus('connected', `Connected · ${cfg.tenantId}`);
+        addMessage('system', `Connected to ${cfg.tenantId} (JWT)`);
       },
       onDisconnected: (reason) => {
         setStatus('disconnected', 'Disconnected');
@@ -327,6 +346,10 @@ configForm.addEventListener('submit', (e) => {
     workflow: String(data.get('workflow')).trim(),
     participantId: String(data.get('participantId')).trim(),
   });
+});
+
+tenantIdInput.addEventListener('input', () => {
+  renderSessionMeta();
 });
 
 disconnectBtn.addEventListener('click', () => {

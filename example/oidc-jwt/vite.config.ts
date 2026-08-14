@@ -58,12 +58,26 @@ function attachJwtProxyAuth(): ProxyOptions['configure'] {
   };
 }
 
-/** Serve `/callback` (Azure SPA redirect URI) from `callback.html`. */
-function rewriteCallbackPath(url: string | undefined): string | undefined {
+/**
+ * Serve registered Azure SPA redirect paths from the matching HTML entry.
+ * `/callback` → dedicated callback page; `/auth` → the main SPA (login + post-logout).
+ */
+function rewriteOidcRedirectPath(url: string | undefined): string | undefined {
   if (!url) return url;
-  if (url === '/callback' || url.startsWith('/callback?')) {
-    return url.replace('/callback', '/callback.html');
+
+  const q = url.indexOf('?');
+  const pathname = q >= 0 ? url.slice(0, q) : url;
+  const qs = q >= 0 ? url.slice(q) : '';
+  const path = pathname.replace(/\/+$/, '') || '/';
+
+  if (path === '/callback') {
+    return `/callback.html${qs}`;
   }
+
+  if (path === '/auth') {
+    return `/index.html${qs}`;
+  }
+
   return url;
 }
 
@@ -96,14 +110,14 @@ export default defineConfig(({ mode }) => {
         name: 'oidc-callback-path',
         configureServer(server) {
           server.middlewares.use((req, _res, next) => {
-            const rewritten = rewriteCallbackPath(req.url);
+            const rewritten = rewriteOidcRedirectPath(req.url);
             if (rewritten) req.url = rewritten;
             next();
           });
         },
         configurePreviewServer(server) {
           server.middlewares.use((req, _res, next) => {
-            const rewritten = rewriteCallbackPath(req.url);
+            const rewritten = rewriteOidcRedirectPath(req.url);
             if (rewritten) req.url = rewritten;
             next();
           });
@@ -113,7 +127,7 @@ export default defineConfig(({ mode }) => {
     server: {
       // Pin host so the browser origin matches Azure redirect URIs (localhost ≠ 127.0.0.1).
       host: 'localhost',
-      port: 3000,
+      port: 4200,
       strictPort: true,
       open: true,
       // Proxy API + SSE calls to the real server so the browser only ever makes

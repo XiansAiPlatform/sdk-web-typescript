@@ -28,6 +28,16 @@
             <button type="button" class="btn" id="logoutBtn" disabled>Sign out</button>
           </div>
         </div>
+        <dl class="auth__meta" id="authMeta">
+          <div class="auth__meta-item">
+            <dt>User ID</dt>
+            <dd id="authUserId">—</dd>
+          </div>
+          <div class="auth__meta-item">
+            <dt>Tenant</dt>
+            <dd id="authTenant">—</dd>
+          </div>
+        </dl>
         <p class="auth__hint">
           JWT auth uses your IdP access token via <code>getJwtToken</code> — no API key.
           Save matching OIDC settings in Agent Studio → Tenant Settings before connecting.

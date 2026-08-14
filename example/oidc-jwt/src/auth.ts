@@ -238,6 +238,13 @@ function allUserClaims(user: User): Record<string, unknown> {
   };
 }
 
+/** Stable IdP user id: Azure `oid`, else OIDC `sub`. */
+export function userIdFromUser(user: User | null): string {
+  if (!user) return '';
+  const claims = allUserClaims(user);
+  return claimString(claims.oid) || claimString(claims.sub) || '';
+}
+
 /** Prefer email-like claims, then sub — used as UserApi participantId. */
 export function participantIdFromUser(user: User | null): string {
   if (!user) return '';
